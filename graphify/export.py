@@ -931,16 +931,25 @@ def to_graphml(
     G: nx.Graph,
     communities: dict[int, list[str]],
     output_path: str,
+    community_labels: dict[int, str] | None = None,
 ) -> None:
     """Export graph as GraphML - opens in Gephi, yEd, and any GraphML-compatible tool.
 
     Community IDs are written as a node attribute so Gephi can colour by community.
+    When community_labels is provided, community_name is also written per node.
     Edge confidence (EXTRACTED/INFERRED/AMBIGUOUS) is preserved as an edge attribute.
     """
     H = G.copy()
+    # NetworkX GraphML writer rejects list graph-level attrs; strip hyperedges if present.
+    if "hyperedges" in H.graph:
+        del H.graph["hyperedges"]
     node_community = _node_community_map(communities)
+    labels = community_labels or {}
     for node_id in H.nodes():
-        H.nodes[node_id]["community"] = node_community.get(node_id, -1)
+        cid = node_community.get(node_id, -1)
+        H.nodes[node_id]["community"] = cid
+        if cid in labels:
+            H.nodes[node_id]["community_name"] = labels[cid]
     nx.write_graphml(H, output_path)
 
 

@@ -125,3 +125,28 @@ def test_to_html_contains_nodes_and_edges():
         content = out.read_text()
         assert "RAW_NODES" in content
         assert "RAW_EDGES" in content
+
+
+def test_to_graphml_strips_hyperedges(tmp_path):
+    """hyperedges graph-level attr은 nx.write_graphml이 거부하므로 strip 필요."""
+    import networkx as nx
+    from graphify.export import to_graphml
+    G = nx.Graph()
+    G.add_node("a"); G.add_node("b"); G.add_edge("a", "b")
+    G.graph["hyperedges"] = [{"nodes": ["a", "b"]}]  # list attr — writer가 거부
+    out = tmp_path / "g.graphml"
+    # 예외 없이 성공해야 함
+    to_graphml(G, {0: ["a", "b"]}, str(out))
+    assert out.exists()
+
+def test_to_graphml_injects_community_name(tmp_path):
+    """community_labels 제공 시 노드에 community_name attr 주입."""
+    import networkx as nx
+    import xml.etree.ElementTree as ET
+    from graphify.export import to_graphml
+    G = nx.Graph()
+    G.add_node("a"); G.add_node("b"); G.add_edge("a", "b")
+    out = tmp_path / "g.graphml"
+    to_graphml(G, {0: ["a", "b"]}, str(out), community_labels={0: "[FE] X"})
+    xml = out.read_text()
+    assert "community_name" in xml or "[FE] X" in xml
