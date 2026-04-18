@@ -31,10 +31,21 @@ def _load_persisted_labels(out: Path, communities: dict) -> dict:
         return fallback
 
 
-def _rebuild_code(watch_path: Path, *, follow_symlinks: bool = False) -> bool:
+def _rebuild_code(
+    watch_path: Path,
+    *,
+    follow_symlinks: bool = False,
+    out_dir: Path | None = None,
+    directed: bool = False,
+) -> bool:
     """Re-run AST extraction + build + cluster + report for code files. No LLM needed.
 
-    Returns True on success, False on error.
+    Returns True on success, False on error. ``out_dir`` overrides the
+    default ``<watch_path>/graphify-out`` location so callers can direct
+    output into a shared overlay directory (for example
+    ``.claude/architecture/graph/_global/graphify-out``). ``directed``
+    forwards to ``build_from_json`` so reverse-reachability queries on
+    the resulting ``graph.json`` stay meaningful.
     """
     watch_path = watch_path.resolve()
     try:
@@ -55,18 +66,56 @@ def _rebuild_code(watch_path: Path, *, follow_symlinks: bool = False) -> bool:
 
         result = extract(code_files, cache_root=watch_path)
 
+        # Merge route / HTTP overlay nodes and edges produced by
+        # graphify.routes and graphify.http_calls. These scanners walk the
+        # source root independently of `detect()` but skip the same set of
+        # heavy directories (node_modules, .next, …). Overlay results stack
+        # on top of AST nodes so FE/BE bridges are visible in graph.json.
+        try:
+            from graphify.routes import scan as _scan_routes
+            routes_res = _scan_routes(watch_path)
+            result["nodes"].extend(routes_res.nodes)
+            result["edges"].extend(routes_res.edges)
+        except Exception as exc:
+            print(f"[graphify watch] routes scan skipped: {exc}")
+        try:
+            from graphify.http_calls import scan as _scan_http_calls
+            http_res = _scan_http_calls(watch_path)
+            result["nodes"].extend(http_res.nodes)
+            result["edges"].extend(http_res.edges)
+        except Exception as exc:
+            print(f"[graphify watch] http_calls scan skipped: {exc}")
+
         # Preserve semantic nodes/edges from a previous full run.
         # AST-only rebuild replaces code nodes; doc/paper/image nodes are kept.
-        out = watch_path / "graphify-out"
+        out = out_dir.resolve() if out_dir is not None else (watch_path / "graphify-out")
         existing_graph = out / "graph.json"
         if existing_graph.exists():
             try:
                 existing = json.loads(existing_graph.read_text(encoding="utf-8"))
                 code_ids = {n["id"] for n in existing.get("nodes", []) if n.get("file_type") == "code"}
-                sem_nodes = [n for n in existing.get("nodes", []) if n.get("file_type") != "code"]
-                sem_edges = [e for e in existing.get("links", existing.get("edges", []))
-                             if e.get("confidence") in ("INFERRED", "AMBIGUOUS")
-                             or (e.get("source") not in code_ids and e.get("target") not in code_ids)]
+                # Preserve only doc/paper/image semantic nodes — NOT route/URL/API
+                # overlay nodes, which are regenerated from source on every build.
+                # Preserving stale overlay would leak deleted pages/endpoints into
+                # the rebuilt graph.
+                sem_nodes = [
+                    n for n in existing.get("nodes", [])
+                    if n.get("file_type") not in ("code", "route")
+                ]
+                sem_node_ids = {n["id"] for n in sem_nodes}
+                # Preserve edges between preserved semantic nodes or from code
+                # to semantic (INFERRED/AMBIGUOUS). Drop any edge that touches
+                # a non-preserved, non-code node (i.e. stale route/API node).
+                sem_edges = []
+                for e in existing.get("links", existing.get("edges", [])):
+                    src, tgt = e.get("source"), e.get("target")
+                    if src not in code_ids and src not in sem_node_ids and src is not None:
+                        continue
+                    if tgt not in code_ids and tgt not in sem_node_ids and tgt is not None:
+                        continue
+                    if e.get("confidence") in ("INFERRED", "AMBIGUOUS") \
+                       or (src not in code_ids and tgt not in code_ids):
+                        sem_edges.append(e)
                 result = {
                     "nodes": result["nodes"] + sem_nodes,
                     "edges": result["edges"] + sem_edges,
@@ -83,7 +132,7 @@ def _rebuild_code(watch_path: Path, *, follow_symlinks: bool = False) -> bool:
             "total_words": detected.get("total_words", 0),
         }
 
-        G = build_from_json(result)
+        G = build_from_json(result, directed=directed)
         communities = cluster(G)
         cohesion = score_all(G, communities)
         gods = god_nodes(G)
@@ -93,7 +142,7 @@ def _rebuild_code(watch_path: Path, *, follow_symlinks: bool = False) -> bool:
         labels = _load_persisted_labels(out, communities)
         questions = suggest_questions(G, communities, labels)
 
-        out.mkdir(exist_ok=True)
+        out.mkdir(parents=True, exist_ok=True)
 
         report = generate(G, communities, cohesion, labels, gods, surprises, detection,
                           {"input": 0, "output": 0}, str(watch_path), suggested_questions=questions)

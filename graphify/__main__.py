@@ -6,6 +6,371 @@ import re
 import shutil
 import sys
 from pathlib import Path
+from typing import Iterable
+
+
+# ───── Phase 4 helper commands (build / resolve / callers / blast / init-ignore) ─
+
+_DEFAULT_IGNORE_TEMPLATE = """\
+# graphify init-ignore — default patterns
+# Edit to match your project; safe to remove items you want graphify to read.
+
+# Dependency and build artifacts
+node_modules/
+.next/
+dist/
+build/
+out/
+.output/
+.venv/
+__pycache__/
+*.pyc
+*.lock
+*.log
+*.map
+*.min.js
+
+# graphify outputs (prevent self-ingestion when the repo is re-scanned)
+.claude/architecture/graph/*/corpus/
+.claude/architecture/graph/*/graphify-out/
+graphify-out/
+
+# Editor state
+.vscode/
+.idea/
+.DS_Store
+"""
+
+
+def _cmd_init_ignore(args: list[str]) -> int:
+    """Write a sensible .graphifyignore if absent; append missing defaults if present."""
+    if not args:
+        print("Usage: graphify init-ignore <project-path>", file=sys.stderr)
+        return 1
+    project = Path(args[0]).resolve()
+    if not project.exists():
+        print(f"error: path not found: {project}", file=sys.stderr)
+        return 1
+    target = project / ".graphifyignore"
+    default_lines = [
+        line for line in _DEFAULT_IGNORE_TEMPLATE.splitlines()
+        if line and not line.lstrip().startswith("#")
+    ]
+    if target.exists():
+        existing = target.read_text(encoding="utf-8")
+        # Line-level equality avoids false positives where ``foo/node_modules/``
+        # would otherwise satisfy ``node_modules/`` via substring match.
+        existing_lines = {line.strip() for line in existing.splitlines()}
+        append_lines: list[str] = [
+            line for line in default_lines if line not in existing_lines
+        ]
+        if append_lines:
+            suffix = "" if existing.endswith("\n") else "\n"
+            new_contents = existing + suffix + "\n# graphify init-ignore defaults\n" + \
+                "\n".join(append_lines) + "\n"
+            target.write_text(new_contents, encoding="utf-8")
+            print(f"Updated {target} with {len(append_lines)} missing defaults.")
+        else:
+            print(f"{target} already contains all graphify defaults. No changes.")
+        return 0
+    target.write_text(_DEFAULT_IGNORE_TEMPLATE, encoding="utf-8")
+    print(f"Wrote {target}.")
+    return 0
+
+
+def _load_graph_from_json(
+    graph_path: Path,
+    *,
+    require_directed: bool = False,
+):
+    """Return (G, raw_dict). Honors the ``directed`` field from graph.json.
+
+    Raises ``SystemExit`` with exit code 1 when the file does not exist or
+    fails JSON parsing so callers can surface a clean message.
+    """
+    import networkx as nx  # local import to keep module import cheap
+    from networkx.readwrite import json_graph
+    from .build import build_from_json
+
+    if not graph_path.exists():
+        print(f"error: graph file not found: {graph_path}", file=sys.stderr)
+        raise SystemExit(1)
+    try:
+        raw = json.loads(graph_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        print(f"error: graph file is not valid JSON ({exc})", file=sys.stderr)
+        raise SystemExit(1)
+    directed = bool(raw.get("directed", False))
+    G = build_from_json(raw, directed=directed)
+    if require_directed and not G.is_directed():
+        from .analyze import _DIRECTED_GUIDANCE
+        print(f"error: {_DIRECTED_GUIDANCE}", file=sys.stderr)
+        raise SystemExit(1)
+    return G, raw
+
+
+class _FlagError(ValueError):
+    """Raised when argv contains a flag the subcommand does not understand."""
+
+
+def _parse_flags(
+    argv: list[str],
+    flag_specs: dict[str, str],
+) -> tuple[dict[str, str], list[str]]:
+    """Split ``argv`` into ``{flag_name: value}`` plus positional args.
+
+    ``flag_specs`` maps flag names to either ``"bool"`` (no value) or
+    ``"value"`` (takes the next argv token). Tokens starting with ``--``
+    that are not in ``flag_specs`` are rejected — the CLI is agent-facing
+    and silent acceptance of unknown flags has produced confusing
+    "node not found" errors in practice. Value flags without a following
+    token are also rejected.
+    """
+    consumed: dict[str, str] = {}
+    positional: list[str] = []
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        spec = flag_specs.get(a)
+        if spec == "bool":
+            consumed[a] = "true"
+            i += 1
+            continue
+        if spec == "value":
+            if i + 1 >= len(argv):
+                raise _FlagError(f"flag {a} requires a value")
+            consumed[a] = argv[i + 1]
+            i += 2
+            continue
+        if a.startswith("--"):
+            raise _FlagError(f"unknown flag: {a}")
+        positional.append(a)
+        i += 1
+    return consumed, positional
+
+
+def _cmd_build(args: list[str]) -> int:
+    """AST + routes + http build producing graph.json + graph.html + GRAPH_REPORT.md.
+
+    Supports ``--directed``, ``--out-dir``, and ``--no-semantic``. The
+    ``--no-semantic`` flag is currently implicit (this CLI path never
+    invokes the Claude subagent semantic pass — it is AST + overlay only
+    — so the flag is accepted for compatibility with the documented
+    workflow). When LLM semantic extraction is needed, use the
+    ``/graphify`` skill flow inside Claude Code.
+    """
+    try:
+        flags, positional = _parse_flags(args, {
+            "--directed": "bool",
+            "--no-semantic": "bool",
+            "--out-dir": "value",
+        })
+    except _FlagError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if not positional:
+        print("Usage: graphify build <source-root> [--directed] [--out-dir <dir>] [--no-semantic]",
+              file=sys.stderr)
+        return 1
+    source_root = Path(positional[0]).resolve()
+    if not source_root.exists():
+        print(f"error: source path not found: {source_root}", file=sys.stderr)
+        return 1
+    out_dir = (
+        Path(flags["--out-dir"]).resolve() if "--out-dir" in flags
+        else source_root / "graphify-out"
+    )
+    directed = "--directed" in flags
+    from .watch import _rebuild_code
+    ok = _rebuild_code(source_root, out_dir=out_dir, directed=directed)
+    if not ok:
+        print("build failed — check messages above.", file=sys.stderr)
+        return 1
+    print(f"Built: {out_dir}/graph.json")
+    return 0
+
+
+def _path_pattern_to_regex(pattern: str) -> re.Pattern[str]:
+    """Convert a URL pattern (``/x/:id``, ``/files/*path``) to a regex.
+
+    Wildcard semantics follow the graphify overlay naming convention used
+    by ``graphify.routes``:
+
+      * ``:name``     → exactly one non-slash segment
+      * ``*name``     → one or more segments (Next.js ``[...name]``)
+      * ``*?name``    → zero or more segments, *including* the preceding
+                         slash, so ``/shop/[[...slug]]`` matches both
+                         ``/shop`` and ``/shop/a/b``.
+    """
+    pieces = pattern.split("/")
+    rendered: list[str] = []
+    for idx, piece in enumerate(pieces):
+        if not piece:
+            rendered.append("")
+            continue
+        if piece.startswith("*?"):
+            # Optional catch-all: consume the preceding slash as well so
+            # both '/shop' and '/shop/a/b' match.
+            if rendered and rendered[-1] == "":
+                rendered.pop()  # drop empty slot between previous slash and this
+            rendered.append(r"(?:/(.*))?")
+            continue
+        if piece.startswith("*"):
+            rendered.append(r"(.+)")
+            continue
+        if piece.startswith(":"):
+            rendered.append(r"([^/]+)")
+            continue
+        rendered.append(re.escape(piece))
+    regex = "^" + "/".join(rendered) + "/?$"
+    # Collapse '/' preceding an optional catch-all that already includes
+    # its own slash, otherwise the joined separator duplicates.
+    regex = regex.replace("/(?:/", "(?:/")
+    return re.compile(regex)
+
+
+def _cmd_resolve(args: list[str]) -> int:
+    try:
+        flags, positional = _parse_flags(args, {
+            "--graph": "value",
+            "--method": "value",
+            "--json": "bool",
+        })
+    except _FlagError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if not positional:
+        print("Usage: graphify resolve <url> [--graph <path>] [--method <METHOD>] [--json]",
+              file=sys.stderr)
+        return 1
+    target_url = positional[0]
+    graph_path = Path(flags.get("--graph", "graphify-out/graph.json"))
+    G, _raw = _load_graph_from_json(graph_path)
+    want_method = flags.get("--method")
+
+    matches: list[dict] = []
+    for nid, attrs in G.nodes(data=True):
+        kind = attrs.get("kind")
+        if kind not in ("url", "api"):
+            continue
+        pattern = attrs.get("url_pattern")
+        if not pattern:
+            continue
+        if kind == "api" and want_method and attrs.get("method") != want_method.upper():
+            continue
+        regex = _path_pattern_to_regex(pattern)
+        if regex.match(target_url):
+            payload = {
+                "id": nid,
+                "label": attrs.get("label", nid),
+                "kind": kind,
+                "url_pattern": pattern,
+                "source_file": attrs.get("source_file", ""),
+            }
+            if "method" in attrs:
+                payload["method"] = attrs["method"]
+            # Add 1-hop neighbors so the agent has context immediately.
+            neighbors: list[dict] = []
+            for _, tgt, edata in G.out_edges(nid, data=True):
+                neighbors.append({
+                    "id": tgt,
+                    "relation": edata.get("relation", ""),
+                    "label": G.nodes[tgt].get("label", tgt),
+                })
+            payload["neighbors"] = neighbors
+            matches.append(payload)
+
+    output = {"url": target_url, "matches": matches}
+    if "--json" in flags:
+        print(json.dumps(output, indent=2))
+    else:
+        if not matches:
+            print(f"No URL/API matches for {target_url}")
+        for m in matches:
+            print(f"- [{m['kind']}] {m.get('method', '').rjust(6)} {m['url_pattern']} "
+                  f"({m['source_file']})")
+            for n in m["neighbors"]:
+                print(f"    → {n['relation']} {n['label']} ({n['id']})")
+    return 0
+
+
+def _cmd_impact(cmd: str, args: list[str]) -> int:
+    try:
+        flags, positional = _parse_flags(args, {
+            "--graph": "value",
+            "--edges": "value",
+            "--max-hops": "value",
+            "--json": "bool",
+        })
+    except _FlagError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if not positional:
+        print(f"Usage: graphify {cmd} <node-id-or-label> [--graph <path>] "
+              "[--edges REL1,REL2] [--max-hops N] [--json]", file=sys.stderr)
+        return 1
+    target = positional[0]
+    graph_path = Path(flags.get("--graph", "graphify-out/graph.json"))
+    try:
+        G, _ = _load_graph_from_json(graph_path, require_directed=True)
+    except SystemExit as exc:
+        return int(getattr(exc, "code", 1) or 1)
+    edge_types: list[str] | None = None
+    if "--edges" in flags:
+        edge_types = [e.strip() for e in flags["--edges"].split(",") if e.strip()]
+    max_hops = 3
+    if "--max-hops" in flags:
+        try:
+            max_hops = int(flags["--max-hops"])
+        except ValueError:
+            print(f"error: --max-hops must be an integer, got {flags['--max-hops']!r}",
+                  file=sys.stderr)
+            return 1
+
+    # Resolve target by id first, then by label prefix for convenience.
+    if target not in G:
+        resolved = None
+        for nid, attrs in G.nodes(data=True):
+            if attrs.get("label") == target:
+                resolved = nid
+                break
+        if resolved is None:
+            print(f"No node found matching {target!r}. Try using the exact node id.",
+                  file=sys.stderr)
+            return 1
+        target = resolved
+
+    from .analyze import callers, callees, blast_radius
+    try:
+        if cmd == "callers":
+            results = callers(G, target, max_hops=max_hops, edge_types=edge_types)
+            output = {"target": target, "results": results}
+        elif cmd == "callees":
+            results = callees(G, target, max_hops=max_hops, edge_types=edge_types)
+            output = {"target": target, "results": results}
+        else:  # blast
+            output = blast_radius(G, target, edge_types=edge_types)
+            output = {"target": target, **output}
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if "--json" in flags:
+        print(json.dumps(output, indent=2))
+    else:
+        if cmd in ("callers", "callees"):
+            rs = output["results"]
+            print(f"{cmd} of {target}: {len(rs)} node(s)")
+            for r in rs:
+                src = r.get("source_file", "")
+                print(f"  hop={r.get('hop', '?')}  {r['label']} [{r['id']}] {src}")
+        else:
+            print(f"blast_radius from {target}: {output['total']} node(s), "
+                  f"{len(output['by_file'])} file(s)")
+            for f, nodes in output["by_file"].items():
+                print(f"  {f} ({len(nodes)}): {', '.join(nodes[:6])}"
+                      f"{'…' if len(nodes) > 6 else ''}")
+    return 0
 
 try:
     from importlib.metadata import version as _pkg_version
@@ -15,13 +380,21 @@ except Exception:
 
 
 def _check_skill_version(skill_dst: Path) -> None:
-    """Warn if the installed skill is from an older graphify version."""
+    """Warn if the installed skill is from an older graphify version.
+
+    Writes to stderr so stdout stays clean for JSON-emitting subcommands
+    such as ``resolve --json`` / ``callers --json`` / ``blast --json``.
+    """
     version_file = skill_dst.parent / ".graphify_version"
     if not version_file.exists():
         return
     installed = version_file.read_text(encoding="utf-8").strip()
     if installed != __version__:
-        print(f"  warning: skill is from graphify {installed}, package is {__version__}. Run 'graphify install' to update.")
+        print(
+            f"  warning: skill is from graphify {installed}, package is {__version__}. "
+            "Run 'graphify install' to update.",
+            file=sys.stderr,
+        )
 
 
 def _refresh_all_version_stamps() -> None:
@@ -927,6 +1300,22 @@ def main() -> None:
         print("  update <path>           re-extract code files and update the graph (no LLM needed)")
         print("  cluster-only <path>     rerun clustering on an existing graph.json and regenerate report")
         print("  relabel <path>          interactively rename community labels and persist them to .graphify_labels.json")
+        print("  build <source-root>     AST + routes + http build producing graph.json/html/md")
+        print("    --directed              build a DiGraph (needed for callers/callees/blast)")
+        print("    --out-dir <dir>         write graphify-out to an alternate directory")
+        print("    --no-semantic           document the AST/routes-only scope (flag is implicit)")
+        print("  resolve <url>           list URL/API nodes matching a concrete URL plus 1-hop neighbors")
+        print("    --method <METHOD>       filter API matches by HTTP method")
+        print("    --graph <path>          path to graph.json (default graphify-out/graph.json)")
+        print("    --json                  emit JSON instead of human-readable output")
+        print("  callers <node>          nodes that transitively reach <node> (upstream, requires --directed)")
+        print("    --edges R1,R2           whitelist edge relations (e.g. calls,calls_http)")
+        print("    --max-hops N            BFS depth cap (default 3)")
+        print("    --graph <path>          path to graph.json")
+        print("    --json                  emit JSON")
+        print("  callees <node>          nodes reachable from <node> (downstream)")
+        print("  blast <node>            transitive downstream closure grouped by source_file")
+        print("  init-ignore <path>      write a sensible .graphifyignore template for the project")
         print("  query \"<question>\"       BFS traversal of graph.json for a question")
         print("    --dfs                   use depth-first instead of breadth-first")
         print("    --budget N              cap output at N tokens (default 2000)")
@@ -1339,18 +1728,47 @@ def main() -> None:
         sys.exit(relabel_main(sys.argv[2:]))
 
     elif cmd == "update":
-        watch_path = Path(sys.argv[2]) if len(sys.argv) > 2 else Path(".")
+        argv_rest = sys.argv[2:]
+        out_dir_arg: Path | None = None
+        directed_flag = False
+        positional: list[str] = []
+        i = 0
+        while i < len(argv_rest):
+            a = argv_rest[i]
+            if a == "--out-dir" and i + 1 < len(argv_rest):
+                out_dir_arg = Path(argv_rest[i + 1])
+                i += 2
+                continue
+            if a == "--directed":
+                directed_flag = True
+                i += 1
+                continue
+            positional.append(a)
+            i += 1
+        watch_path = Path(positional[0]) if positional else Path(".")
         if not watch_path.exists():
             print(f"error: path not found: {watch_path}", file=sys.stderr)
             sys.exit(1)
         from graphify.watch import _rebuild_code
         print(f"Re-extracting code files in {watch_path} (no LLM needed)...")
-        ok = _rebuild_code(watch_path)
+        ok = _rebuild_code(watch_path, out_dir=out_dir_arg, directed=directed_flag)
         if ok:
             print("Code graph updated. For doc/paper/image changes run /graphify --update in your AI assistant.")
         else:
             print("Nothing to update or rebuild failed — check output above.", file=sys.stderr)
             sys.exit(1)
+
+    elif cmd == "build":
+        sys.exit(_cmd_build(sys.argv[2:]))
+
+    elif cmd == "resolve":
+        sys.exit(_cmd_resolve(sys.argv[2:]))
+
+    elif cmd in ("callers", "callees", "blast"):
+        sys.exit(_cmd_impact(cmd, sys.argv[2:]))
+
+    elif cmd == "init-ignore":
+        sys.exit(_cmd_init_ignore(sys.argv[2:]))
 
     elif cmd == "benchmark":
         from graphify.benchmark import run_benchmark, print_benchmark
