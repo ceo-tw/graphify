@@ -2,6 +2,15 @@
 
 Full release notes with details on each version: [GitHub Releases](https://github.com/safishamsi/graphify/releases)
 
+## 0.5.1 (fork: ceo-tw, 2026-04-19)
+
+Documentation patch — no behavior changes.
+
+- Ship `GETTING_STARTED.md` in the release tag (previously untracked, so `pipx install git+…@v0.5.0` users did not receive the doc).
+- Correct CLI subcommand count (6 new subcommands + `update` flag extensions).
+- Clarify that `callers`/`callees`/`blast` target resolution is **exact node id or exact label equality** — no fuzzy match. Examples updated to use labels with the actual punctuation AST produces (e.g. `"build_from_json()"` with parentheses). Added a `jq` snippet for discovering the correct id/label from `graph.json`.
+- Fix API node example label: the `label` field is `METHOD path` (no `API:` prefix); the id follows `_api_node_id(method, path)` (e.g. `api_post_agents_id_restart`). Previous `graphify callees "API:POST /agents/:id/restart"` example would have returned "No node found matching".
+
 ## 0.5.0 (fork: ceo-tw, 2026-04-19)
 
 URL-centric workflow support on top of upstream 0.4.23: answer "which page handles this URL, which API does this button call, what happens downstream" without running a semantic pass.
