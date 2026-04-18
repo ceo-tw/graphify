@@ -55,6 +55,19 @@ def _partition(G: nx.Graph) -> dict[str, int]:
 _MAX_COMMUNITY_FRACTION = 0.25   # communities larger than 25% of graph get split
 _MIN_SPLIT_SIZE = 10             # only split if community has at least this many nodes
 
+# Nodes with these file_type values are pulled out of Leiden clustering and
+# placed into a synthetic community. Route/URL/API/SERVICE overlays would
+# otherwise become FE↔BE "bridges" that distort community structure once the
+# DiGraph is converted to undirected for Leiden.
+_OVERLAY_FILE_TYPES = frozenset({"route"})
+_OVERLAY_COMMUNITY_LABEL = "Routes"
+
+
+def _is_overlay_node(G: nx.Graph, node_id: str) -> bool:
+    """Return True if this node carries an overlay ``file_type`` attribute."""
+    attrs = G.nodes[node_id]
+    return attrs.get("file_type") in _OVERLAY_FILE_TYPES
+
 
 def cluster(G: nx.Graph) -> dict[int, list[str]]:
     """Run Leiden community detection. Returns {community_id: [node_ids]}.
@@ -63,6 +76,13 @@ def cluster(G: nx.Graph) -> dict[int, list[str]]:
     Oversized communities (> 25% of graph nodes, min 10) are split by running
     a second Leiden pass on the subgraph.
 
+    Overlay nodes (``file_type`` in ``_OVERLAY_FILE_TYPES`` — currently
+    ``"route"``) are excluded from Leiden and placed into a single synthetic
+    "Routes" community after clustering. This prevents URL/API nodes from
+    acting as FE↔BE bridges once the DiGraph is collapsed to undirected for
+    Leiden. Callers that want the label for the synthetic community can
+    import ``_OVERLAY_COMMUNITY_LABEL``.
+
     Accepts directed or undirected graphs. DiGraphs are converted to undirected
     internally since Louvain/Leiden require undirected input.
     """
@@ -70,38 +90,65 @@ def cluster(G: nx.Graph) -> dict[int, list[str]]:
         return {}
     if G.is_directed():
         G = G.to_undirected()
-    if G.number_of_edges() == 0:
-        return {i: [n] for i, n in enumerate(sorted(G.nodes))}
 
-    # Leiden warns and drops isolates - handle them separately
-    isolates = [n for n in G.nodes() if G.degree(n) == 0]
-    connected_nodes = [n for n in G.nodes() if G.degree(n) > 0]
-    connected = G.subgraph(connected_nodes)
+    # Separate overlay nodes *before* the edgeless fast-path so they share one
+    # synthetic community instead of becoming singleton communities.
+    overlay_nodes = [n for n in G.nodes() if _is_overlay_node(G, n)]
+    non_overlay_nodes = [n for n in G.nodes() if n not in set(overlay_nodes)]
+
+    if G.number_of_edges() == 0:
+        result: dict[int, list[str]] = {
+            i: [n] for i, n in enumerate(sorted(non_overlay_nodes))
+        }
+        if overlay_nodes:
+            overlay_cid = len(result)
+            result[overlay_cid] = sorted(overlay_nodes)
+        return result
+
+    # Work on a copy of the non-overlay subgraph so degree/isolate checks
+    # reflect the graph Leiden will actually see.
+    clust_graph = G.subgraph(non_overlay_nodes).copy() if overlay_nodes else G
 
     raw: dict[int, list[str]] = {}
-    if connected.number_of_nodes() > 0:
-        partition = _partition(connected)
-        for node, cid in partition.items():
-            raw.setdefault(cid, []).append(node)
+    if clust_graph.number_of_nodes() > 0:
+        # Leiden warns and drops isolates - handle them separately
+        isolates = [n for n in clust_graph.nodes() if clust_graph.degree(n) == 0]
+        connected_nodes = [n for n in clust_graph.nodes() if clust_graph.degree(n) > 0]
+        connected = clust_graph.subgraph(connected_nodes)
 
-    # Each isolate becomes its own single-node community
-    next_cid = max(raw.keys(), default=-1) + 1
-    for node in isolates:
-        raw[next_cid] = [node]
-        next_cid += 1
+        if connected.number_of_nodes() > 0:
+            partition = _partition(connected)
+            for node, cid in partition.items():
+                raw.setdefault(cid, []).append(node)
 
-    # Split oversized communities
-    max_size = max(_MIN_SPLIT_SIZE, int(G.number_of_nodes() * _MAX_COMMUNITY_FRACTION))
+        # Each isolate becomes its own single-node community
+        next_cid = max(raw.keys(), default=-1) + 1
+        for node in isolates:
+            raw[next_cid] = [node]
+            next_cid += 1
+
+    # Split oversized communities (relative to the clustered subgraph size)
+    clustered_n = max(1, clust_graph.number_of_nodes())
+    max_size = max(_MIN_SPLIT_SIZE, int(clustered_n * _MAX_COMMUNITY_FRACTION))
     final_communities: list[list[str]] = []
     for nodes in raw.values():
         if len(nodes) > max_size:
-            final_communities.extend(_split_community(G, nodes))
+            final_communities.extend(_split_community(clust_graph, nodes))
         else:
             final_communities.append(nodes)
 
     # Re-index by size descending for deterministic ordering
     final_communities.sort(key=len, reverse=True)
-    return {i: sorted(nodes) for i, nodes in enumerate(final_communities)}
+    result = {i: sorted(nodes) for i, nodes in enumerate(final_communities)}
+
+    # Append overlay nodes as a single synthetic community at the tail so the
+    # cid is stable across runs (always max_real_cid + 1). When there are no
+    # real communities this still produces cid=0 for the overlay.
+    if overlay_nodes:
+        overlay_cid = (max(result.keys()) + 1) if result else 0
+        result[overlay_cid] = sorted(overlay_nodes)
+
+    return result
 
 
 def _split_community(G: nx.Graph, nodes: list[str]) -> list[list[str]]:
