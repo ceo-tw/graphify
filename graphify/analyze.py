@@ -1,6 +1,179 @@
-"""Graph analysis: god nodes (most connected), surprising connections (cross-community), suggested questions."""
+"""Graph analysis: god nodes (most connected), surprising connections (cross-community), suggested questions.
+
+Also hosts directed impact queries — ``callers``, ``callees``, and
+``blast_radius`` — used by the ``graphify callers``/``callees``/``blast``
+CLI subcommands. These require a ``DiGraph``; the corresponding undirected
+query collapses to "nodes in the same connected component", which is
+meaningless for impact analysis, so the helpers raise ``ValueError`` with
+guidance to rebuild the graph with ``--directed``.
+"""
 from __future__ import annotations
+
+from collections import deque
+
 import networkx as nx
+
+
+# ───── Directed impact helpers ──────────────────────────────────────────
+
+
+_DIRECTED_GUIDANCE = (
+    "callers/callees/blast_radius require a directed graph — "
+    "rebuild with `graphify build <path> --directed` (or pass `directed=True` "
+    "to build_from_json) so edge direction is preserved."
+)
+
+
+def _require_directed(G: nx.Graph) -> None:
+    if not G.is_directed():
+        raise ValueError(_DIRECTED_GUIDANCE)
+
+
+def _node_payload(G: nx.Graph, node_id: str, hop: int | None = None) -> dict:
+    """Extract a stable, CLI-friendly payload for one node.
+
+    Route overlay attrs (``kind``, ``method``, ``url_pattern``) are included
+    when present so the CLI can print meaningful identity for URL/API
+    nodes that lack a traditional ``source_file``.
+    """
+    attrs = G.nodes[node_id]
+    payload = {
+        "id": node_id,
+        "label": attrs.get("label", node_id),
+        "source_file": attrs.get("source_file", ""),
+        "source_location": attrs.get("source_location", ""),
+        "file_type": attrs.get("file_type", ""),
+    }
+    for route_key in ("kind", "method", "url_pattern"):
+        if route_key in attrs:
+            payload[route_key] = attrs[route_key]
+    if hop is not None:
+        payload["hop"] = hop
+    return payload
+
+
+def _bfs_reachable(
+    G: nx.DiGraph,
+    start: str,
+    *,
+    direction: str,
+    max_hops: int | None,
+    edge_types: list[str] | None,
+) -> dict[str, int]:
+    """Return ``{node_id: hop_distance}`` reached from ``start``.
+
+    ``direction`` is ``"forward"`` (follow outgoing edges) or ``"reverse"``
+    (follow incoming edges). ``max_hops`` caps the BFS depth; ``None``
+    means unbounded. ``edge_types`` is a whitelist of ``relation`` values
+    and ``None`` accepts every edge.
+    """
+    allowed: frozenset[str] | None = (
+        frozenset(edge_types) if edge_types is not None else None
+    )
+    visited: dict[str, int] = {start: 0}
+    queue: deque[tuple[str, int]] = deque([(start, 0)])
+    while queue:
+        cur, depth = queue.popleft()
+        if max_hops is not None and depth >= max_hops:
+            continue
+        if direction == "forward":
+            neighbors_iter = G.out_edges(cur, data=True)
+            next_fn = lambda src, tgt, data: tgt
+        else:
+            neighbors_iter = G.in_edges(cur, data=True)
+            next_fn = lambda src, tgt, data: src
+        for u, v, data in neighbors_iter:
+            if allowed is not None:
+                rel = data.get("relation", "")
+                if rel not in allowed:
+                    continue
+            nxt = next_fn(u, v, data)
+            if nxt in visited:
+                continue
+            visited[nxt] = depth + 1
+            queue.append((nxt, depth + 1))
+    visited.pop(start, None)
+    return visited
+
+
+def callers(
+    G: nx.DiGraph,
+    node_id: str,
+    *,
+    max_hops: int = 3,
+    edge_types: list[str] | None = None,
+) -> list[dict]:
+    """Return nodes that transitively reach ``node_id`` (upstream direction).
+
+    Result is sorted by ascending hop distance so direct callers come first.
+    Returns an empty list when ``node_id`` is absent from ``G``.
+    """
+    _require_directed(G)
+    if node_id not in G:
+        return []
+    reached = _bfs_reachable(
+        G, node_id,
+        direction="reverse",
+        max_hops=max_hops,
+        edge_types=edge_types,
+    )
+    ordered = sorted(reached.items(), key=lambda kv: (kv[1], kv[0]))
+    return [_node_payload(G, nid, hop) for nid, hop in ordered]
+
+
+def callees(
+    G: nx.DiGraph,
+    node_id: str,
+    *,
+    max_hops: int = 3,
+    edge_types: list[str] | None = None,
+) -> list[dict]:
+    """Return nodes ``node_id`` transitively reaches (downstream direction)."""
+    _require_directed(G)
+    if node_id not in G:
+        return []
+    reached = _bfs_reachable(
+        G, node_id,
+        direction="forward",
+        max_hops=max_hops,
+        edge_types=edge_types,
+    )
+    ordered = sorted(reached.items(), key=lambda kv: (kv[1], kv[0]))
+    return [_node_payload(G, nid, hop) for nid, hop in ordered]
+
+
+def blast_radius(
+    G: nx.DiGraph,
+    node_id: str,
+    *,
+    edge_types: list[str] | None = None,
+) -> dict:
+    """Transitive downstream closure grouped by ``source_file``.
+
+    Returns ``{"nodes": [...], "by_file": {file: [node_id, ...]}, "total": N}``
+    with no hop cap. Meant for "if I change X, what downstream code is
+    affected?" questions.
+    """
+    _require_directed(G)
+    if node_id not in G:
+        return {"nodes": [], "by_file": {}, "total": 0}
+    reached = _bfs_reachable(
+        G, node_id,
+        direction="forward",
+        max_hops=None,
+        edge_types=edge_types,
+    )
+    nodes = [_node_payload(G, nid, hop) for nid, hop in
+             sorted(reached.items(), key=lambda kv: (kv[1], kv[0]))]
+    by_file: dict[str, list[str]] = {}
+    for n in nodes:
+        f = n.get("source_file") or "(unknown)"
+        by_file.setdefault(f, []).append(n["id"])
+    return {
+        "nodes": nodes,
+        "by_file": by_file,
+        "total": len(nodes),
+    }
 
 
 def _node_community_map(communities: dict[int, list[str]]) -> dict[str, int]:
