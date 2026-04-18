@@ -13,6 +13,10 @@ Full release notes with details on each version: [GitHub Releases](https://githu
 
 - Fix: AST cache written to `src/graphify-out/cache/` instead of project root when all code files share a common prefix like `src/` — `extract()` now called with explicit `cache_root=watch_path` in `_rebuild_code` and `cache_root=Path('.')` in the Codex skill AST step (#429)
 - Fix: `.mdx` files silently skipped during detection — added `.mdx` to `DOC_EXTENSIONS` in `detect.py`; MDX-based corpora (Next.js, Docusaurus, Astro) now indexed correctly (#428)
+- Add `relabel` subcommand: re-exports an existing graphify-out directory with new community labels, preserving stale wiki cleanup and directedness (see `graphify/relabel.py`).
+- `to_graphml` now accepts `community_labels` and strips `G.graph["hyperedges"]` before serialisation (prevents NetworkX GraphML writer errors).
+- `watch.py` (`_rebuild_code`) reads `.graphify_labels.json` if present so community labels survive rebuilds.
+- cleanup stage no longer deletes `.graphify_labels.json` — labels now persist across `/graphify --update` and cleanup passes.
 
 ## 0.4.21 (2026-04-17)
 

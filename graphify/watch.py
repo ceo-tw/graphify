@@ -1,6 +1,7 @@
 # monitor a folder and auto-trigger --update when files change
 from __future__ import annotations
 import json
+import logging
 import sys
 import time
 from pathlib import Path
@@ -10,6 +11,24 @@ from graphify.detect import CODE_EXTENSIONS, DOC_EXTENSIONS, PAPER_EXTENSIONS, I
 
 _WATCHED_EXTENSIONS = CODE_EXTENSIONS | DOC_EXTENSIONS | PAPER_EXTENSIONS | IMAGE_EXTENSIONS
 _CODE_EXTENSIONS = CODE_EXTENSIONS
+
+
+def _load_persisted_labels(out: Path, communities: dict) -> dict:
+    """Read community labels from .graphify_labels.json if present.
+
+    Falls back to {cid: "Community N"} on missing file or corrupt JSON.
+    """
+    labels_path = out / ".graphify_labels.json"
+    fallback = {cid: f"Community {cid}" for cid in communities}
+    if not labels_path.exists():
+        return fallback
+    try:
+        raw = json.loads(labels_path.read_text(encoding="utf-8"))
+        loaded = {int(k): v for k, v in raw.items() if int(k) in communities}
+        return loaded or fallback
+    except (json.JSONDecodeError, ValueError) as exc:
+        logging.warning("[graphify watch] Corrupt .graphify_labels.json (%s); using fallback", exc)
+        return fallback
 
 
 def _rebuild_code(watch_path: Path, *, follow_symlinks: bool = False) -> bool:
@@ -69,7 +88,9 @@ def _rebuild_code(watch_path: Path, *, follow_symlinks: bool = False) -> bool:
         cohesion = score_all(G, communities)
         gods = god_nodes(G)
         surprises = surprising_connections(G, communities)
-        labels = {cid: "Community " + str(cid) for cid in communities}
+
+        # Load persisted labels if they exist; fall back to numeric "Community N"
+        labels = _load_persisted_labels(out, communities)
         questions = suggest_questions(G, communities, labels)
 
         out.mkdir(exist_ok=True)
@@ -90,6 +111,12 @@ def _rebuild_code(watch_path: Path, *, follow_symlinks: bool = False) -> bool:
             stale = out / "graph.html"
             if stale.exists():
                 stale.unlink()
+
+        # Persist labels for next run (preserves across cleanup)
+        (out / ".graphify_labels.json").write_text(
+            json.dumps({str(k): v for k, v in labels.items()}, indent=2),
+            encoding="utf-8",
+        )
 
         # clear stale needs_update flag if present
         flag = out / "needs_update"

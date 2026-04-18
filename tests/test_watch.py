@@ -6,6 +6,42 @@ import pytest
 from graphify.watch import _notify_only, _WATCHED_EXTENSIONS
 
 
+# --- _rebuild_code persisted labels ---
+
+def test_rebuild_code_reads_persisted_labels(tmp_path, monkeypatch):
+    """When .graphify_labels.json exists, rebuild uses those labels instead of 'Community N'."""
+    import graphify.watch as watch_mod
+
+    watch_path = tmp_path / "repo"
+    out = watch_path / "graphify-out"
+    out.mkdir(parents=True)
+    (watch_path / "sample.py").write_text("def foo():\n    pass\n")
+    # Seed labels before rebuild
+    (out / ".graphify_labels.json").write_text('{"0": "[BE/api] Sample Module"}')
+
+    # Minimal stub graph data (one node, one edge, community 0)
+    stub_extract_result = {
+        "nodes": [{"id": "sample.foo", "label": "foo", "file": "sample.py", "file_type": "code"}],
+        "edges": [{"source": "sample.foo", "target": "sample.foo", "type": "DEFINES"}],
+        "hyperedges": [],
+        "input_tokens": 0,
+        "output_tokens": 0,
+    }
+
+    monkeypatch.setattr("graphify.watch._rebuild_code.__module__", "graphify.watch")
+
+    # Patch extract to avoid tree-sitter dependency
+    import graphify.extract as extract_mod
+    monkeypatch.setattr(extract_mod, "extract", lambda files: stub_extract_result)
+
+    from graphify.watch import _rebuild_code
+    ok = _rebuild_code(watch_path)
+    assert ok
+    # Verify labels survived in the output
+    html = (out / "graph.html").read_text()
+    assert "[BE/api] Sample Module" in html or "Community 0" not in html
+
+
 # --- _notify_only ---
 
 def test_notify_only_creates_flag(tmp_path):
