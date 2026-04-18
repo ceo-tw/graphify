@@ -2,6 +2,19 @@
 
 Full release notes with details on each version: [GitHub Releases](https://github.com/safishamsi/graphify/releases)
 
+## 0.5.0 (fork: ceo-tw, 2026-04-19)
+
+URL-centric workflow support on top of upstream 0.4.23: answer "which page handles this URL, which API does this button call, what happens downstream" without running a semantic pass.
+
+- **New: URL/Route overlay (`graphify/routes.py`)** — filesystem-first Next.js App Router scanner (pages, route handlers, layouts, loading, error; dynamic `[id]`, catch-all `[...slug]`, optional `[[...slug]]`, route groups, parallel `@slot`, intercepting prefixes like `(.)photo`), Pages Router fallback, and Hono BE scanner that resolves cross-file `app.route(...)` mounts via TS imports so e.g. `index.ts` mounting `settings-plans.ts` at `/settings/plans` composes the full URL for `plans.put('/bulk-provider')`. Emits `URL:<pattern>`, `API:<METHOD> <pattern>`, and `SERVICE:<name>` nodes with `file_type="route"`.
+- **New: Wrapper-aware HTTP extractor (`graphify/http_calls.py` + `graphify/tsconfig_paths.py`)** — detects `@/lib/api-client`-style wrappers automatically (filename + fetch/axios body check), with `.graphify/http-wrappers.json` override. Handles template-literal endpoints, `'/users/' + id + '/reset'` binary concat, query/hash stripping, and `${ADMIN_API_URL}/api/…` env-base prefixes. Emits `calls_http` edges anchored to AST-compatible caller IDs (including class-method `_make_id(class, method)`).
+- **New: tsconfig `paths` resolver (`graphify/tsconfig_paths.py`)** — honors `compilerOptions.paths` + `baseUrl`, tolerates JSON-with-comments, walks up from source files so package-level tsconfig wins in monorepos.
+- **New: Cluster overlay isolation (`graphify/cluster.py`)** — `file_type="route"` nodes are held out of Leiden and placed in a synthetic "Routes" community so URL nodes do not distort community structure (Leiden converts to undirected internally).
+- **New: Directed impact queries (`graphify/analyze.py`)** — `callers()`, `callees()`, `blast_radius()` with `edge_types` whitelist and hop cap; raise `ValueError` when the graph is undirected with guidance to rebuild with `--directed`.
+- **New CLI subcommands (`graphify/__main__.py`)**: `build <src> [--directed] [--out-dir <dir>]` (deterministic AST + R + H build, no LLM needed), `resolve <url> [--method M] [--json]` (concrete URL → URL/API overlay nodes + 1-hop neighbors), `callers` / `callees` / `blast <node> [--edges …] [--max-hops N] [--json]`, `init-ignore <path>` (writes/appends sensible `.graphifyignore`). Strict flag parser rejects unknown `--flags`.
+- **`graphify update` now accepts `--out-dir` and `--directed`**; `watch._rebuild_code` calls `routes.scan()` + `http_calls.scan()` and prunes stale route overlay on rebuild so deleted pages/endpoints don't linger.
+- `_check_skill_version` warnings now go to stderr so `--json` stdout stays parse-able by agent callers.
+
 ## 0.4.23 (2026-04-18)
 
 - Fix: stale skill version warning persists after running `graphify install` when multiple platforms were previously installed — `graphify install` now refreshes `.graphify_version` in all other known skill directories so the warning clears across the board (#178)

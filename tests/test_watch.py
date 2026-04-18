@@ -32,7 +32,7 @@ def test_rebuild_code_reads_persisted_labels(tmp_path, monkeypatch):
 
     # Patch extract to avoid tree-sitter dependency
     import graphify.extract as extract_mod
-    monkeypatch.setattr(extract_mod, "extract", lambda files: stub_extract_result)
+    monkeypatch.setattr(extract_mod, "extract", lambda files, **kwargs: stub_extract_result)
 
     from graphify.watch import _rebuild_code
     ok = _rebuild_code(watch_path)

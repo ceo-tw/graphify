@@ -28,6 +28,19 @@ Turn any folder of files into a navigable knowledge graph with community detecti
 /graphify <path> --watch                              # watch folder, auto-rebuild on code changes (no LLM needed)
 /graphify <path> --wiki                               # build agent-crawlable wiki (index.md + one article per community)
 /graphify <path> --obsidian --obsidian-dir ~/vaults/my-project  # write vault to custom path (e.g. existing vault)
+
+# Companion CLI subcommands (no LLM needed, since v0.5.0) — run from a shell:
+#   graphify build <src> [--directed] [--out-dir <dir>]         AST + Next.js routes + HTTP overlay in one step
+#   graphify update <src> [--directed] [--out-dir <dir>]        incremental AST rebuild honoring --directed / --out-dir
+#   graphify resolve </portal/agents/172> [--method GET] [--json]
+#                                                               resolve a concrete URL → URL/API overlay nodes + neighbors
+#   graphify callers <node> [--edges calls,calls_http] [--max-hops N] [--json]
+#                                                               directed reverse reachability (requires --directed build)
+#   graphify callees <node> …                                   directed forward reachability
+#   graphify blast <node> …                                     transitive downstream closure grouped by source_file
+#   graphify init-ignore <path>                                 seed a sensible .graphifyignore for the project
+#   graphify relabel <graphify-out-dir> [--labels <path>]       re-export wiki/html/json/graphml with new labels
+
 /graphify add <url>                                   # fetch URL, save to ./raw, update graph
 /graphify add <url> --author "Name"                   # tag who wrote it
 /graphify add <url> --contributor "Name"              # tag who added it to the corpus
