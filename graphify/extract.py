@@ -139,38 +139,99 @@ def _import_python(node, source: bytes, file_nid: str, stem: str, edges: list, s
             })
 
 
-def _import_js(node, source: bytes, file_nid: str, stem: str, edges: list, str_path: str) -> None:
+_JS_TS_IMPORT_EXTS = (".ts", ".tsx", ".js", ".jsx")
+_JS_TS_INDEX_NAMES = ("index.ts", "index.tsx", "index.js", "index.jsx")
+
+
+def _resolve_ts_import_to_file(base: Path) -> Path | None:
+    """Given a relative-import base path (extension-less or ``.js``/``.jsx``),
+    probe the on-disk candidates the TS resolver accepts and return the first
+    existing file. Returns ``None`` if nothing matches — callers should skip."""
+    if base.suffix in (".js", ".jsx", ".ts", ".tsx") and base.is_file():
+        return base
+    stripped = base.with_suffix("") if base.suffix in (".js", ".jsx") else base
+    for ext in _JS_TS_IMPORT_EXTS:
+        candidate = stripped.with_suffix(ext)
+        if candidate.is_file():
+            return candidate
+    if stripped.is_dir():
+        for idx in _JS_TS_INDEX_NAMES:
+            candidate = stripped / idx
+            if candidate.is_file():
+                return candidate
+    return None
+
+
+def _import_js(
+    node,
+    source: bytes,
+    file_nid: str,
+    stem: str,
+    edges: list,
+    str_path: str,
+    namespace_aliases: dict[str, dict] | None = None,
+) -> None:
+    # Find the module source string child first — needed to resolve both the
+    # imports_from edge and any namespace_import aliases below.
+    src_str: str | None = None
     for child in node.children:
         if child.type == "string":
-            raw = _read_text(child, source).strip("'\"` ")
-            if not raw:
-                break
-            if raw.startswith("."):
-                # Relative import - resolve to full path so IDs match file node IDs
-                # normpath removes ".." segments so the ID matches the target file's own node ID
-                resolved = Path(os.path.normpath(Path(str_path).parent / raw))
-                # TypeScript ESM: imports written as .js but actual file is .ts/.tsx
-                if resolved.suffix == ".js":
-                    resolved = resolved.with_suffix(".ts")
-                elif resolved.suffix == ".jsx":
-                    resolved = resolved.with_suffix(".tsx")
-                tgt_nid = _make_id(str(resolved))
-            else:
-                # Bare/scoped import (node_modules) - use last segment; dropped as external
-                module_name = raw.split("/")[-1]
-                if not module_name:
-                    break
-                tgt_nid = _make_id(module_name)
-            edges.append({
-                "source": file_nid,
-                "target": tgt_nid,
-                "relation": "imports_from",
-                "confidence": "EXTRACTED",
-                "source_file": str_path,
-                "source_location": f"L{node.start_point[0] + 1}",
-                "weight": 1.0,
-            })
+            src_str = _read_text(child, source).strip("'\"` ")
             break
+    if not src_str:
+        return
+
+    if src_str.startswith("."):
+        resolved = Path(os.path.normpath(Path(str_path).parent / src_str))
+        if resolved.suffix == ".js":
+            resolved = resolved.with_suffix(".ts")
+        elif resolved.suffix == ".jsx":
+            resolved = resolved.with_suffix(".tsx")
+        tgt_nid = _make_id(str(resolved))
+        is_relative = True
+    else:
+        module_name = src_str.split("/")[-1]
+        if not module_name:
+            return
+        resolved = None
+        tgt_nid = _make_id(module_name)
+        is_relative = False
+
+    edges.append({
+        "source": file_nid,
+        "target": tgt_nid,
+        "relation": "imports_from",
+        "confidence": "EXTRACTED",
+        "source_file": str_path,
+        "source_location": f"L{node.start_point[0] + 1}",
+        "weight": 1.0,
+    })
+
+    # Namespace alias recording: ``import * as X from './foo'`` registers X
+    # so X.method() can resolve cross-file. Only relative imports can be
+    # resolved to on-disk files; external packages (react, …) are skipped.
+    if namespace_aliases is None or not is_relative:
+        return
+    for child in node.children:
+        if child.type != "import_clause":
+            continue
+        for sub in child.children:
+            if sub.type != "namespace_import":
+                continue
+            # namespace_import -> (*, as, identifier)
+            for ident in sub.children:
+                if ident.type == "identifier":
+                    alias = _read_text(ident, source)
+                    resolved_file = _resolve_ts_import_to_file(Path(
+                        os.path.normpath(Path(str_path).parent / src_str)
+                    ))
+                    if resolved_file is None:
+                        continue
+                    namespace_aliases[alias] = {
+                        "target_id": _make_id(str(resolved_file)),
+                        "target_source_file": str(resolved_file),
+                    }
+                    break
 
 
 def _import_java(node, source: bytes, file_nid: str, stem: str, edges: list, str_path: str) -> None:
@@ -683,6 +744,11 @@ def _extract_generic(path: Path, config: LanguageConfig) -> dict:
     seen_ids: set[str] = set()
     function_bodies: list[tuple[str, object]] = []
     pending_listen_edges: list[tuple[str, str, int]] = []
+    # TS/JS namespace alias table: {alias_name: {target_id, target_source_file}}
+    # Populated by _import_js for ``import * as X from './foo'`` statements so
+    # the call walker can resolve X.method() cross-file with file scoping.
+    namespace_aliases: dict[str, dict] = {}
+    is_js_ts = config.ts_module in ("tree_sitter_javascript", "tree_sitter_typescript")
 
     def add_node(nid: str, label: str, line: int) -> None:
         if nid not in seen_ids:
@@ -716,7 +782,11 @@ def _extract_generic(path: Path, config: LanguageConfig) -> dict:
         # Import types
         if t in config.import_types:
             if config.import_handler:
-                config.import_handler(node, source, file_nid, stem, edges, str_path)
+                if is_js_ts:
+                    _import_js(node, source, file_nid, stem, edges, str_path,
+                               namespace_aliases=namespace_aliases)
+                else:
+                    config.import_handler(node, source, file_nid, stem, edges, str_path)
             return
 
         # Class types
@@ -956,6 +1026,10 @@ def _extract_generic(path: Path, config: LanguageConfig) -> dict:
 
         if node.type in config.call_types:
             callee_name: str | None = None
+            # Only the JS/TS generic branch populates namespace_hit; initialize
+            # here so the shared resolution block below never sees an unbound
+            # variable when a non-generic language branch returns a callee_name.
+            namespace_hit: dict | None = None
 
             # Special handling per language
             if config.ts_module == "tree_sitter_swift":
@@ -1046,34 +1120,56 @@ def _extract_generic(path: Path, config: LanguageConfig) -> dict:
                             attr = func_node.child_by_field_name(config.call_accessor_field)
                             if attr:
                                 callee_name = _read_text(attr, source)
+                        # JS/TS member_expression: if the object is a plain
+                        # identifier matching a namespace alias, record the
+                        # target-file hint so cross-file resolution can scope
+                        # the lookup instead of falling back to global match.
+                        if is_js_ts and namespace_aliases:
+                            obj_node = func_node.child_by_field_name("object")
+                            if obj_node is not None and obj_node.type == "identifier":
+                                obj_name = _read_text(obj_node, source)
+                                namespace_hit = namespace_aliases.get(obj_name)
                     else:
                         # Try reading the node directly (e.g. Java name field is the callee)
                         callee_name = _read_text(func_node, source)
 
             if callee_name:
-                tgt_nid = label_to_nid.get(callee_name.lower())
-                if tgt_nid and tgt_nid != caller_nid:
-                    pair = (caller_nid, tgt_nid)
-                    if pair not in seen_call_pairs:
-                        seen_call_pairs.add(pair)
-                        line = node.start_point[0] + 1
-                        edges.append({
-                            "source": caller_nid,
-                            "target": tgt_nid,
-                            "relation": "calls",
-                            "confidence": "EXTRACTED",
-                            "source_file": str_path,
-                            "source_location": f"L{line}",
-                            "weight": 1.0,
-                        })
-                elif callee_name and not tgt_nid:
-                    # Callee not in this file — save for cross-file resolution in extract()
+                # Namespace-hinted call (e.g. ``authService.login()``) — skip
+                # local label_to_nid lookup so a same-named local helper does
+                # not shadow the namespace-scoped resolution.
+                if namespace_hit is not None:
                     raw_calls.append({
                         "caller_nid": caller_nid,
                         "callee": callee_name,
+                        "namespace_target_id": namespace_hit["target_id"],
+                        "namespace_target_source_file": namespace_hit["target_source_file"],
                         "source_file": str_path,
                         "source_location": f"L{node.start_point[0] + 1}",
                     })
+                else:
+                    tgt_nid = label_to_nid.get(callee_name.lower())
+                    if tgt_nid and tgt_nid != caller_nid:
+                        pair = (caller_nid, tgt_nid)
+                        if pair not in seen_call_pairs:
+                            seen_call_pairs.add(pair)
+                            line = node.start_point[0] + 1
+                            edges.append({
+                                "source": caller_nid,
+                                "target": tgt_nid,
+                                "relation": "calls",
+                                "confidence": "EXTRACTED",
+                                "source_file": str_path,
+                                "source_location": f"L{line}",
+                                "weight": 1.0,
+                            })
+                    elif callee_name and not tgt_nid:
+                        # Callee not in this file — save for cross-file resolution in extract()
+                        raw_calls.append({
+                            "caller_nid": caller_nid,
+                            "callee": callee_name,
+                            "source_file": str_path,
+                            "source_location": f"L{node.start_point[0] + 1}",
+                        })
 
             # Helper function calls: config('foo.bar') → uses_config edge to "foo"
             if (callee_name and callee_name in config.helper_fn_names):
@@ -1235,7 +1331,10 @@ def _extract_generic(path: Path, config: LanguageConfig) -> dict:
         if src in valid_ids and (tgt in valid_ids or edge["relation"] in ("imports", "imports_from")):
             clean_edges.append(edge)
 
-    return {"nodes": nodes, "edges": clean_edges, "raw_calls": raw_calls}
+    result = {"nodes": nodes, "edges": clean_edges, "raw_calls": raw_calls}
+    if namespace_aliases:
+        result["namespace_aliases"] = namespace_aliases
+    return result
 
 
 # ── Python rationale extraction ───────────────────────────────────────────────
@@ -3189,14 +3288,50 @@ def extract(paths: list[Path], cache_root: Path | None = None) -> dict:
         if normalised:
             global_label_to_nid[normalised.lower()] = n["id"]
 
+    # Per-source-file index for namespace-scoped cross-file resolution.
+    nodes_by_source_file: dict[str, list[dict]] = {}
+    for n in all_nodes:
+        sf = n.get("source_file", "")
+        if sf:
+            nodes_by_source_file.setdefault(sf, []).append(n)
+
     existing_pairs = {(e["source"], e["target"]) for e in all_edges}
     for result in per_file:
         for rc in result.get("raw_calls", []):
             callee = rc.get("callee", "")
             if not callee:
                 continue
-            tgt = global_label_to_nid.get(callee.lower())
             caller = rc["caller_nid"]
+            target_sf = rc.get("namespace_target_source_file")
+            if target_sf:
+                # Namespace-hinted call: scope lookup to the aliased file.
+                # No global fallback — a miss beats a likely-wrong match.
+                candidates = [
+                    n for n in nodes_by_source_file.get(target_sf, [])
+                    if (n.get("label", "").strip("()").lstrip(".").lower()
+                        == callee.lower())
+                ]
+                if not candidates:
+                    continue
+                tgt = candidates[0]["id"]
+                # 0.9 when the scoped lookup resolves to exactly one symbol;
+                # 0.8 when multiple same-named symbols live in the target file
+                # (e.g. an inner helper plus the exported fn share a name).
+                conf_score = 0.9 if len(candidates) == 1 else 0.8
+                if tgt != caller and (caller, tgt) not in existing_pairs:
+                    existing_pairs.add((caller, tgt))
+                    all_edges.append({
+                        "source": caller,
+                        "target": tgt,
+                        "relation": "calls",
+                        "confidence": "INFERRED",
+                        "confidence_score": conf_score,
+                        "source_file": rc.get("source_file", ""),
+                        "source_location": rc.get("source_location"),
+                        "weight": 1.0,
+                    })
+                continue
+            tgt = global_label_to_nid.get(callee.lower())
             if tgt and tgt != caller and (caller, tgt) not in existing_pairs:
                 existing_pairs.add((caller, tgt))
                 all_edges.append({

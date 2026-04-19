@@ -11,7 +11,9 @@ This module intentionally stays small:
   * No full TypeScript compiler host.
   * No tsconfig ``extends`` resolution (follow-up — most monorepos rely
     on path aliases that are defined at the package level directly).
-  * Tolerant of JSON-with-comments since editors frequently leave them in.
+  * Tolerant of JSON-with-comments since editors frequently leave them in —
+    the stripper is string-aware so ``/*`` inside a value like ``"@/*"`` is
+    not mistaken for a comment (v0.5.2 fix).
 
 Entry points:
 
@@ -25,7 +27,6 @@ Entry points:
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import Optional
 
@@ -37,11 +38,73 @@ _INDEX_CANDIDATES = ("index.ts", "index.tsx", "index.js", "index.jsx")
 # ───── JSONC tolerance ──────────────────────────────────────────────────
 
 
-_COMMENT_RE = re.compile(
-    r"//.*?$|/\*.*?\*/",
-    re.MULTILINE | re.DOTALL,
-)
-_TRAILING_COMMA_RE = re.compile(r",(\s*[}\]])")
+def _strip_jsonc(text: str) -> str:
+    """Strip ``//`` line comments, ``/* */`` block comments, and trailing
+    commas from JSON-with-comments text while leaving string values intact.
+
+    A single character-level pass with four states (code / string /
+    line-comment / block-comment) — a regex that ignores JSON string context
+    silently corrupts real tsconfigs that contain ``/*`` inside a string
+    value (e.g. ``"@/*"`` in ``paths``).
+
+    An unterminated block comment is re-emitted verbatim so ``json.loads``
+    fails loudly instead of silently accepting truncated input.
+    """
+    n = len(text)
+    out: list[str] = []
+    i = 0
+    while i < n:
+        c = text[i]
+        nxt = text[i + 1] if i + 1 < n else ""
+        # String literal — preserve verbatim, honour \-escapes.
+        if c == '"':
+            out.append(c)
+            i += 1
+            while i < n:
+                ch = text[i]
+                out.append(ch)
+                i += 1
+                if ch == "\\" and i < n:
+                    out.append(text[i])
+                    i += 1
+                    continue
+                if ch == '"':
+                    break
+            continue
+        # // line comment — skip to (but not including) newline.
+        if c == "/" and nxt == "/":
+            i += 2
+            while i < n and text[i] != "\n":
+                i += 1
+            continue
+        # /* block comment */ — find matching */ or re-emit verbatim at EOF.
+        if c == "/" and nxt == "*":
+            start = i
+            i += 2
+            closed = False
+            while i < n:
+                if text[i] == "*" and i + 1 < n and text[i + 1] == "/":
+                    i += 2
+                    closed = True
+                    break
+                i += 1
+            if not closed:
+                # Preserve the original so json.loads fails, not silently ok.
+                out.append(text[start:])
+                i = n
+            continue
+        # Trailing comma: in code state, drop a ',' that's only whitespace
+        # away from a closing ']' or '}'. Strings/comments never reach here.
+        if c == ",":
+            j = i + 1
+            while j < n and text[j] in " \t\r\n":
+                j += 1
+            if j < n and text[j] in "}]":
+                i += 1  # drop the comma, keep whitespace + closer
+                continue
+        out.append(c)
+        i += 1
+    return "".join(out)
 
 
 def _parse_jsonc(text: str) -> dict:
@@ -51,10 +114,7 @@ def _parse_jsonc(text: str) -> dict:
     tsconfig applicable here" rather than raising, because a broken tsconfig
     in the user's project should not abort graphify.
     """
-    # Strip comments. Naive but safe for tsconfig files in practice:
-    # they do not contain comment-like strings inside string values.
-    stripped = _COMMENT_RE.sub("", text)
-    stripped = _TRAILING_COMMA_RE.sub(r"\1", stripped)
+    stripped = _strip_jsonc(text)
     try:
         data = json.loads(stripped)
     except json.JSONDecodeError:

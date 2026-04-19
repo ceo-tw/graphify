@@ -391,3 +391,43 @@ def test_scan_skips_test_files(tmp_path: Path):
     result = scan(tmp_path)
     api_pairs = {(n["method"], n["url_pattern"]) for n in result.nodes if n.get("kind") == "api"}
     assert ("POST", "/fake-endpoint") not in api_pairs
+
+
+# ───── JSONC stripper regression (v0.5.2) ───────────────────────────────
+
+
+@pytest.mark.skipif(not _ts_fixture_available(), reason="tree-sitter-typescript not available")
+def test_wrapper_resolves_when_tsconfig_has_trailing_block_comment(tmp_path: Path):
+    """End-to-end protection for the v0.5.1 JSONC-stripper bug.
+
+    A real Next.js tsconfig often has a trailing ``/* ... */`` comment.
+    With v0.5.1's regex the ``/*`` inside ``"@/*"`` matched forward to that
+    trailing ``*/`` and wiped the ``paths`` dict, so ``@/lib/api-client``
+    never resolved and no ``calls_http`` edge was emitted."""
+    _write(tmp_path / "tsconfig.json", textwrap.dedent("""
+        {
+          "compilerOptions": {
+            "baseUrl": ".",
+            "paths": { "@/*": ["src/*"] }
+          }
+          /* this trailing block comment used to corrupt paths on v0.5.1 */
+        }
+    """).strip())
+    _write(tmp_path / "src" / "lib" / "api-client.ts", textwrap.dedent("""
+        const BASE = process.env.API_BASE_URL;
+        export async function post(endpoint: string, body: any) {
+          return fetch(`${BASE}${endpoint}`, { method: 'POST', body: JSON.stringify(body) });
+        }
+    """).strip())
+    _write(tmp_path / "src" / "hooks" / "use-start-agent.ts", textwrap.dedent("""
+        import { post } from '@/lib/api-client';
+        export async function startAgent(id: string) {
+          return post(`/agents/${id}/start`, {});
+        }
+    """).strip())
+    result = scan(tmp_path)
+    api_pairs = {(n["method"], n["url_pattern"]) for n in result.nodes if n.get("kind") == "api"}
+    assert ("POST", "/agents/:id/start") in api_pairs
+    edges = {(e["relation"], e.get("method"), e.get("url_pattern") or e.get("target"))
+             for e in result.edges}
+    assert any(rel == "calls_http" for rel, *_ in edges)

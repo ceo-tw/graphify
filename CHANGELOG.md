@@ -2,6 +2,15 @@
 
 Full release notes with details on each version: [GitHub Releases](https://github.com/safishamsi/graphify/releases)
 
+## 0.5.2 (fork: ceo-tw, 2026-04-19)
+
+Two HIGH-priority bug fixes. Both silently gutted edge extraction on real Next.js / monorepo codebases (confirmed against openclaw admin-portal: `calls_http` counts jumping from ~11 to the real hundreds; `callers(authService.*)` from ~0 to real usage counts).
+
+- **Fix: JSONC parser no longer corrupts `tsconfig.json` with `@/*` aliases** — the v0.5.1 `_COMMENT_RE` regex in `graphify/tsconfig_paths.py` had no notion of JSON string literals. A `/*` appearing inside a string value (e.g. `"@/*": ["./*"]`) was treated as a block-comment start, and with `re.DOTALL` the non-greedy match ran forward to the next real `*/` later in the file (common: a trailing `/* … */` comment after the `paths` block), erasing the entire `paths` dict before `json.loads` saw it. Replaced with a four-state character scanner (code / string / line-comment / block-comment) that also handles trailing-comma removal without corrupting strings containing `,]` or `,}`, and deliberately re-emits unterminated block comments so `json.loads` fails loudly instead of silently accepting truncated input.
+- **Fix: `import * as X from '...'` namespace calls now emit cross-file `calls` edges** — in v0.5.1 `graphify/extract.py` recorded `import * as authService from './auth-service'` only as an `imports_from` edge and discarded the `authService` alias; `authService.login()` then looked up only `login` in the per-file label table, spilling to the cross-file global label pass where any same-named function anywhere in the repo won (or, more often, nothing matched and the edge was dropped). This collapsed `callers()` queries to ~0 on codebases that use namespace-service imports (openclaw: `import * as authService`, `import * as agentService`, `import * as auditLogService`, …). The extractor now probes the resolved TS file for the real on-disk extension (`.ts/.tsx/.js/.jsx/index.*`), stores `{alias → target_file}`, and — when the call walker sees `X.method()` — scopes the cross-file lookup to the aliased file's symbols with `confidence_score: 0.9` (or `0.8` when multiple same-named symbols live in the file). Local symbols no longer shadow the namespace call; failed scoped lookups drop the edge instead of falling back to the global match.
+- **AST cache schema version bump** — `graphify/cache.py` now mixes a schema version into the per-file cache key. 0.5.1 cache entries were missing the new namespace alias data; without this bump `graphify update .` after upgrade would silently reuse stale results and Fix B would appear inert.
+- 10 new regression tests (5 JSONC stripper + 1 http_calls integration + 6 namespace-import scenarios including arrow-function exports, disambiguation, no-global-fallback, local shadowing).
+
 ## 0.5.1 (fork: ceo-tw, 2026-04-19)
 
 Documentation patch — no behavior changes.

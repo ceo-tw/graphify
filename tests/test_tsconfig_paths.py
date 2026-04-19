@@ -11,6 +11,7 @@ import pytest
 
 from graphify.tsconfig_paths import (
     TsconfigResolver,
+    _parse_jsonc,
     resolve_import,
 )
 
@@ -195,3 +196,64 @@ def test_resolve_import_external_returns_none(tmp_path: Path):
     _write(source_file, "export {};")
     assert resolve_import(source_file, "react", project_root=tmp_path) is None
     assert resolve_import(source_file, "@tanstack/react-query", project_root=tmp_path) is None
+
+
+# ───── JSONC stripper regressions — v0.5.2 bug ──────────────────────────
+
+
+def test_resolver_handles_paths_when_later_block_comment_exists(tmp_path: Path):
+    """The v0.5.1 regex misinterpreted ``/*`` inside ``"@/*"`` as a block
+    comment start and gobbled everything up to the next ``*/`` later in the
+    file. Mimic a real Next.js tsconfig that has a trailing block comment
+    after the ``paths`` entry."""
+    tsconfig = """
+    {
+      "compilerOptions": {
+        "baseUrl": ".",
+        "paths": {
+          "@/*": ["src/*"]
+        }
+      }
+      /* trailing block comment — on 0.5.1 this swallowed the paths dict */
+    }
+    """
+    _write(tmp_path / "tsconfig.json", tsconfig)
+    _write(tmp_path / "src" / "lib" / "api-client.ts", "export const x = 1;")
+    resolver = TsconfigResolver(tmp_path)
+    resolved = resolver.resolve_alias("@/lib/api-client")
+    assert resolved == (tmp_path / "src" / "lib" / "api-client.ts").resolve()
+
+
+def test_parse_jsonc_preserves_strings_with_comment_like_content():
+    """Values containing ``//`` or ``/* */`` must survive the strip pass."""
+    raw = '{"description": "use // and /* careful */ correctly", "n": 1}'
+    parsed = _parse_jsonc(raw)
+    assert parsed == {
+        "description": "use // and /* careful */ correctly",
+        "n": 1,
+    }
+
+
+def test_parse_jsonc_preserves_strings_with_trailing_comma_like_content():
+    """The old regex-based trailing-comma remover corrupted strings
+    containing ``,]`` or ``,}``. The string-aware stripper must not."""
+    raw = '{"a": ",]", "b": ",}"}'
+    parsed = _parse_jsonc(raw)
+    assert parsed == {"a": ",]", "b": ",}"}
+
+
+def test_parse_jsonc_rejects_unterminated_block_comment():
+    """An unterminated /* comment must cause json.loads to fail, not
+    silently truncate — otherwise broken tsconfigs appear to parse."""
+    raw = '{"a": 1} /* unterminated'
+    # _parse_jsonc swallows JSONDecodeError and returns {} — that is the
+    # contract. The scanner must re-emit the /* so json.loads does fail.
+    assert _parse_jsonc(raw) == {}
+
+
+def test_parse_jsonc_preserves_escaped_quote_in_string():
+    """Verify the \\-escape handling: a \" inside a string must not exit
+    the string state early."""
+    raw = r'{"a": "quote \" inside /* not a comment */"}'
+    parsed = _parse_jsonc(raw)
+    assert parsed == {"a": 'quote " inside /* not a comment */'}

@@ -7,6 +7,16 @@ import os
 from pathlib import Path
 
 
+# Bump this when the extractor output schema changes in a way that makes
+# cached 0.x.y results incompatible with the current extractor logic.
+# Mixed into file_hash() so the new code automatically misses old entries.
+#
+# v2 (0.5.2): AST extractor now emits ``namespace_aliases`` and raw_calls with
+# ``namespace_target_source_file`` hints. 0.5.1 cache entries are missing these
+# fields, so reusing them would silently disable cross-file namespace resolution.
+_AST_CACHE_SCHEMA_VERSION = b"v2"
+
+
 def _body_content(content: bytes) -> bytes:
     """Strip YAML frontmatter from Markdown content, returning only the body."""
     text = content.decode(errors="replace")
@@ -38,6 +48,8 @@ def file_hash(path: Path, root: Path = Path(".")) -> str:
         h.update(str(rel).encode())
     except ValueError:
         h.update(str(p.resolve()).encode())
+    h.update(b"\x00")
+    h.update(_AST_CACHE_SCHEMA_VERSION)
     return h.hexdigest()
 
 

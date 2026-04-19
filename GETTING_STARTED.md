@@ -49,6 +49,13 @@ URL (/portal/agents/172)
 
 **이 fork v0.5.0은 위 세 가지를 정확히 추가합니다.** 의도적으로 LLM을 쓰지 않는 결정론적 경로로 동작하며, 기존 `/graphify` skill 파이프라인과 100% 호환됩니다.
 
+### 0.5.2 업데이트 (2026-04-19)
+
+Next.js·모노레포 실전 환경에서 v0.5.1까지 조용히 누락되던 두 종류의 엣지를 복구합니다. 코드 변경 없이 `pipx upgrade graphifyy` 후 `graphify update . --directed` 만 다시 돌리면 누락분이 채워집니다(AST 캐시 스키마가 v2로 올라가 자동 무효화됨).
+
+- **tsconfig `paths` alias가 trailing block comment 때문에 무시되는 버그 수정**. v0.5.1의 JSONC 주석 제거 정규식이 문자열 값 안의 `/*`(예: `"@/*"`)를 블록 주석 시작으로 오해해 뒤에 오는 `*/`까지 통째로 삼켰습니다. 결과적으로 `paths` 딕셔너리 전체가 빈 채로 해석돼 `@/…` alias가 하나도 안 풀리고 `calls_http` 엣지가 대량으로 누락됐습니다. openclaw admin-portal에서 11건 → 수백 건으로 복구됨.
+- **`import * as X from '…'` namespace import cross-file `calls` 엣지 생성**. `import * as authService from './auth-service'` + `authService.login(…)` 호출이 v0.5.1까지는 단순 last-segment 매칭으로 떨어져서 다른 파일의 동명 함수에 잘못 붙거나 아예 엣지가 안 생겼습니다. 이제 파일-scoped 심볼 조회로 정확히 해석됩니다(동일 파일에 동명 심볼 둘 이상이면 confidence 0.8로 downgrade). 구체적으로 openclaw의 `authService`/`agentService`/`auditLogService` 패턴 `callers` 질의가 0건 → 실제 사용량으로 복구됨.
+
 ---
 
 ## 1. 30초 요약 — 뭐가 다른가
@@ -733,6 +740,15 @@ pip install 'tree-sitter>=0.23.0' tree-sitter-typescript tree-sitter-javascript
 - Next.js 프로젝트가 아닙니다 → 정상 (URL 오버레이 없음)
 - 또는 `app/` 디렉토리가 없습니다 → `pages/` Router인지 확인
 - 빌드를 `--directed` 없이 돌렸을 수 있음 → 재빌드
+
+### `calls_http` 엣지 수가 기대보다 훨씬 적음 / `callers` 가 0건
+
+v0.5.1 이하에서는 두 가지 원인이 조용히 엣지를 누락시켰습니다 — 둘 다 v0.5.2에서 수정됨:
+
+1. **tsconfig에 trailing block comment**: `paths: { "@/*": ["src/*"] }` 뒤에 `/* … */` 주석이 있으면 v0.5.1 JSONC 파서가 `paths` 딕셔너리를 통째로 날렸습니다 → `@/…` alias 해석 실패 → `calls_http` 엣지 대량 누락.
+2. **`import * as X from '…'` namespace 호출**: v0.5.1까지는 `X.method()` 의 cross-file `calls` 엣지가 정확히 해석되지 않았습니다(동명 함수에 잘못 붙거나 누락). `authService`/`agentService` 같은 패턴을 많이 쓰면 `callers` 질의가 0건 근처로 떨어집니다.
+
+대응: `pipx upgrade graphifyy` 후 `graphify update . --directed` 로 재빌드하세요. v0.5.2의 AST 캐시 스키마 bump(v2)가 v0.5.1 캐시 엔트리를 자동 무효화하므로 별도 `rm -rf graphify-out/cache` 는 필요 없습니다.
 
 ### `graph.json` 구조 직접 보기
 
