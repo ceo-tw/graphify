@@ -282,6 +282,16 @@ def _is_concept_node(G: nx.Graph, node_id: str) -> bool:
     return False
 
 
+def _is_rationale_node(G: nx.Graph, node_id: str) -> bool:
+    """
+    Return True if this node is a rationale node — a docstring / design-intent
+    fragment extracted by the Python rationale pass. Rationale nodes are
+    intentionally degree=1 (one rationale_for edge to the owning symbol) and
+    should be excluded from isolated-node reporting.
+    """
+    return G.nodes[node_id].get("file_type") == "rationale"
+
+
 from graphify.detect import CODE_EXTENSIONS, DOC_EXTENSIONS, PAPER_EXTENSIONS, IMAGE_EXTENSIONS
 
 
@@ -592,7 +602,10 @@ def suggest_questions(
     # 4. Isolated or weakly-connected nodes → exploration questions
     isolated = [
         n for n in G.nodes()
-        if G.degree(n) <= 1 and not _is_file_node(G, n) and not _is_concept_node(G, n)
+        if G.degree(n) <= 1
+        and not _is_file_node(G, n)
+        and not _is_concept_node(G, n)
+        and not _is_rationale_node(G, n)
     ]
     if isolated:
         labels = [G.nodes[n].get("label", n) for n in isolated[:3]]

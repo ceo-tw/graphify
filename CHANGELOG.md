@@ -2,6 +2,16 @@
 
 Full release notes with details on each version: [GitHub Releases](https://github.com/safishamsi/graphify/releases)
 
+## 0.5.3 (fork: ceo-tw, 2026-04-19)
+
+Graph-hygiene pass driven by `/graphify`'s own self-audit: extraction warnings 302 → 0, primitive-type noise nodes removed, rationale docstrings no longer inflate the isolated-node count, and the 1794-line CLI dispatcher loses its inline traversal handlers.
+
+- **Cache schema v3 (`_AST_CACHE_SCHEMA_VERSION` → `_CACHE_SCHEMA_VERSION`, bumped to `v3`)** — single version constant shared by AST and semantic cache entries in `graphify/cache.py`; existing `graphify-out/cache/` entries auto-invalidate on upgrade, so the first run after upgrade re-extracts all semantic files (one-time Claude API cost).
+- **`build_from_json` normalizes extraction drift** — new `_normalize_extraction` in `graphify/build.py` drops primitive-type nodes (`str`, `int`, …) with empty `source_file`, defaults missing `file_type` by extension (`.md` → `document`, `.pdf` → `paper`, else `code`), remaps legacy `classification` → `confidence` on edges, and fills empty edge `source_file` from the source node's value. Real-world extraction warnings drop from 302 → 0.
+- **Rationale nodes excluded from isolated-node reporting** — `graphify/analyze.py` adds `_is_rationale_node`; `graphify/report.py` moves them to a new "Rationale Coverage" section so the 500+ docstring-backed 1-degree nodes no longer inflate the "isolated" count.
+- **`__main__.py` slimmed: 1794 → 1653 LOC** — `query` / `path` / `explain` handlers extracted to `graphify/cli_graph_query.py` (`cmd_query`, `cmd_path`, `cmd_explain`). CLI surface unchanged; `tests/test_cli_query.py` pins 7 end-to-end scenarios.
+- **Skill prompt hardened** — `graphify/skill.md` explicitly forbids primitive-type nodes and spells out required `file_type` / `confidence` / `source_file` fields for subagents.
+
 ## 0.5.2 (fork: ceo-tw, 2026-04-19)
 
 Two HIGH-priority bug fixes. Both silently gutted edge extraction on real Next.js / monorepo codebases (confirmed against openclaw admin-portal: `calls_http` counts jumping from ~11 to the real hundreds; `callers(authService.*)` from ~0 to real usage counts).

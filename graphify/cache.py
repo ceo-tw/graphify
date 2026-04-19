@@ -10,11 +10,14 @@ from pathlib import Path
 # Bump this when the extractor output schema changes in a way that makes
 # cached 0.x.y results incompatible with the current extractor logic.
 # Mixed into file_hash() so the new code automatically misses old entries.
+# Shared by both AST and semantic cache entries (same cache_dir, same hash key).
 #
-# v2 (0.5.2): AST extractor now emits ``namespace_aliases`` and raw_calls with
-# ``namespace_target_source_file`` hints. 0.5.1 cache entries are missing these
-# fields, so reusing them would silently disable cross-file namespace resolution.
-_AST_CACHE_SCHEMA_VERSION = b"v2"
+# v3 (rev 3): semantic edges now normalized to {confidence, source_file} in
+# build_from_json, and semantic nodes default file_type when missing; older
+# entries may contain 'classification' field or lack file_type on nodes.
+# v2 (0.5.2): AST extractor emits namespace_aliases and raw_calls with
+# namespace_target_source_file hints.
+_CACHE_SCHEMA_VERSION = b"v3"
 
 
 def _body_content(content: bytes) -> bytes:
@@ -49,7 +52,7 @@ def file_hash(path: Path, root: Path = Path(".")) -> str:
     except ValueError:
         h.update(str(p.resolve()).encode())
     h.update(b"\x00")
-    h.update(_AST_CACHE_SCHEMA_VERSION)
+    h.update(_CACHE_SCHEMA_VERSION)
     return h.hexdigest()
 
 

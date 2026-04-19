@@ -132,11 +132,18 @@ def generate(
             ]
 
     # --- Gaps section ---
-    from .analyze import _is_file_node, _is_concept_node
+    from .analyze import _is_file_node, _is_concept_node, _is_rationale_node
 
     isolated = [
         n for n in G.nodes()
-        if G.degree(n) <= 1 and not _is_file_node(G, n) and not _is_concept_node(G, n)
+        if G.degree(n) <= 1
+        and not _is_file_node(G, n)
+        and not _is_concept_node(G, n)
+        and not _is_rationale_node(G, n)
+    ]
+    rationale_attached = [
+        n for n in G.nodes()
+        if _is_rationale_node(G, n) and G.degree(n) >= 1
     ]
     thin_communities = {
         cid: nodes for cid, nodes in communities.items() if len(nodes) < 3
@@ -158,6 +165,13 @@ def generate(
                 lines.append("  Too small to be a meaningful cluster - may be noise or needs more connections extracted.")
         if amb_pct > 20:
             lines.append(f"- **High ambiguity: {amb_pct}% of edges are AMBIGUOUS.** Review the Ambiguous Edges section above.")
+
+    if rationale_attached:
+        lines += ["", "## Rationale Coverage"]
+        lines.append(
+            f"- **{len(rationale_attached)} rationale docstrings** attached to parent symbols "
+            f"via `rationale_for` edges (by design, 1 edge each — excluded from isolated count above)."
+        )
 
     if suggested_questions:
         lines += ["", "## Suggested Questions"]
