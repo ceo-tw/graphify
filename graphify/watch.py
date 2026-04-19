@@ -37,6 +37,7 @@ def _rebuild_code(
     follow_symlinks: bool = False,
     out_dir: Path | None = None,
     directed: bool = False,
+    cache_dir: Path | None = None,
 ) -> bool:
     """Re-run AST extraction + build + cluster + report for code files. No LLM needed.
 
@@ -45,7 +46,10 @@ def _rebuild_code(
     output into a shared overlay directory (for example
     ``.claude/architecture/graph/_global/graphify-out``). ``directed``
     forwards to ``build_from_json`` so reverse-reachability queries on
-    the resulting ``graph.json`` stay meaningful.
+    the resulting ``graph.json`` stay meaningful. ``cache_dir`` overrides
+    the parser cache location; when omitted it defaults to
+    ``<out_dir>/cache/`` so cache never pollutes the source tree when the
+    caller redirects outputs.
     """
     watch_path = watch_path.resolve()
     try:
@@ -56,6 +60,7 @@ def _rebuild_code(
         from graphify.analyze import god_nodes, surprising_connections, suggest_questions
         from graphify.report import generate
         from graphify.export import to_json, to_html
+        from graphify.cache import cache_dir as _resolve_cache_dir
 
         detected = detect(watch_path, follow_symlinks=follow_symlinks)
         code_files = [Path(f) for f in detected['files']['code']]
@@ -64,7 +69,17 @@ def _rebuild_code(
             print("[graphify watch] No code files found - nothing to rebuild.")
             return False
 
-        result = extract(code_files, cache_root=watch_path)
+        # Resolve out + cache locations up-front so cache follows --out-dir
+        # automatically, and eagerly materialize the cache dir so the per-file
+        # extract loop hits an existing path. Cache keys still use watch_path
+        # for relative-path stability (see cache.file_hash).
+        out = out_dir.resolve() if out_dir is not None else (watch_path / "graphify-out")
+        cache_location = _resolve_cache_dir(
+            watch_path,
+            cache_override=cache_dir if cache_dir is not None else (out / "cache"),
+        )
+
+        result = extract(code_files, cache_root=watch_path, cache_override=cache_location)
 
         # Merge route / HTTP overlay nodes and edges produced by
         # graphify.routes and graphify.http_calls. These scanners walk the
@@ -88,7 +103,6 @@ def _rebuild_code(
 
         # Preserve semantic nodes/edges from a previous full run.
         # AST-only rebuild replaces code nodes; doc/paper/image nodes are kept.
-        out = out_dir.resolve() if out_dir is not None else (watch_path / "graphify-out")
         existing_graph = out / "graph.json"
         if existing_graph.exists():
             try:

@@ -56,25 +56,42 @@ def file_hash(path: Path, root: Path = Path(".")) -> str:
     return h.hexdigest()
 
 
-def cache_dir(root: Path = Path(".")) -> Path:
-    """Returns graphify-out/cache/ - creates it if needed."""
-    d = Path(root).resolve() / "graphify-out" / "cache"
+def cache_dir(root: Path = Path("."), cache_override: Path | None = None) -> Path:
+    """Returns the cache directory - creates it if needed.
+
+    If ``cache_override`` is given, it is used verbatim as the cache directory
+    (so callers can relocate the cache out of the source tree — e.g. when
+    ``graphify build`` is invoked with ``--out-dir`` pointing at a shared
+    overlay). Otherwise falls back to ``<root>/graphify-out/cache/`` for
+    backwards compatibility.
+    """
+    if cache_override is not None:
+        # Skip .resolve() if already absolute — extract() calls this per file,
+        # and the watch layer already resolves once up-front.
+        p = Path(cache_override)
+        d = p if p.is_absolute() else p.resolve()
+    else:
+        d = Path(root).resolve() / "graphify-out" / "cache"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def load_cached(path: Path, root: Path = Path(".")) -> dict | None:
+def load_cached(
+    path: Path,
+    root: Path = Path("."),
+    cache_override: Path | None = None,
+) -> dict | None:
     """Return cached extraction for this file if hash matches, else None.
 
-    Cache key: SHA256 of file contents.
-    Cache value: stored as graphify-out/cache/{hash}.json
+    Cache key: SHA256 of file contents + path relative to ``root``.
+    Cache value: stored as ``<cache_dir>/{hash}.json``.
     Returns None if no cache entry or file has changed.
     """
     try:
         h = file_hash(path, root)
     except OSError:
         return None
-    entry = cache_dir(root) / f"{h}.json"
+    entry = cache_dir(root, cache_override=cache_override) / f"{h}.json"
     if not entry.exists():
         return None
     try:
@@ -83,14 +100,19 @@ def load_cached(path: Path, root: Path = Path(".")) -> dict | None:
         return None
 
 
-def save_cached(path: Path, result: dict, root: Path = Path(".")) -> None:
+def save_cached(
+    path: Path,
+    result: dict,
+    root: Path = Path("."),
+    cache_override: Path | None = None,
+) -> None:
     """Save extraction result for this file.
 
-    Stores as graphify-out/cache/{hash}.json where hash = SHA256 of current file contents.
+    Stores as ``<cache_dir>/{hash}.json`` where hash = file_hash(path, root).
     result should be a dict with 'nodes' and 'edges' lists.
     """
     h = file_hash(path, root)
-    entry = cache_dir(root) / f"{h}.json"
+    entry = cache_dir(root, cache_override=cache_override) / f"{h}.json"
     tmp = entry.with_suffix(".tmp")
     try:
         tmp.write_text(json.dumps(result), encoding="utf-8")
@@ -107,15 +129,15 @@ def save_cached(path: Path, result: dict, root: Path = Path(".")) -> None:
         raise
 
 
-def cached_files(root: Path = Path(".")) -> set[str]:
+def cached_files(root: Path = Path("."), cache_override: Path | None = None) -> set[str]:
     """Return set of file paths that have a valid cache entry (hash still matches)."""
-    d = cache_dir(root)
+    d = cache_dir(root, cache_override=cache_override)
     return {p.stem for p in d.glob("*.json")}
 
 
-def clear_cache(root: Path = Path(".")) -> None:
-    """Delete all graphify-out/cache/*.json files."""
-    d = cache_dir(root)
+def clear_cache(root: Path = Path("."), cache_override: Path | None = None) -> None:
+    """Delete all cached *.json entries from the active cache directory."""
+    d = cache_dir(root, cache_override=cache_override)
     for f in d.glob("*.json"):
         f.unlink()
 
@@ -123,6 +145,7 @@ def clear_cache(root: Path = Path(".")) -> None:
 def check_semantic_cache(
     files: list[str],
     root: Path = Path("."),
+    cache_override: Path | None = None,
 ) -> tuple[list[dict], list[dict], list[dict], list[str]]:
     """Check semantic extraction cache for a list of absolute file paths.
 
@@ -135,7 +158,7 @@ def check_semantic_cache(
     uncached: list[str] = []
 
     for fpath in files:
-        result = load_cached(Path(fpath), root)
+        result = load_cached(Path(fpath), root=root, cache_override=cache_override)
         if result is not None:
             cached_nodes.extend(result.get("nodes", []))
             cached_edges.extend(result.get("edges", []))
@@ -151,6 +174,7 @@ def save_semantic_cache(
     edges: list[dict],
     hyperedges: list[dict] | None = None,
     root: Path = Path("."),
+    cache_override: Path | None = None,
 ) -> int:
     """Save semantic extraction results to cache, keyed by source_file.
 
@@ -179,6 +203,6 @@ def save_semantic_cache(
         if not p.is_absolute():
             p = Path(root) / p
         if p.exists():
-            save_cached(p, result, root)
+            save_cached(p, result, root=root, cache_override=cache_override)
             saved += 1
     return saved

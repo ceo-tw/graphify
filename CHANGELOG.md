@@ -2,6 +2,17 @@
 
 Full release notes with details on each version: [GitHub Releases](https://github.com/safishamsi/graphify/releases)
 
+## 0.5.4 (fork: ceo-tw, 2026-04-19)
+
+Cache-location hygiene. `graphify build --out-dir <dir>` previously honored the flag for the graph outputs but still dropped the 13 MB parser cache at `<source>/graphify-out/cache/`, polluting the source tree on every rebuild. Cache now follows `--out-dir` automatically; source tree stays clean.
+
+- **Default cache now lives under `<out-dir>/cache/`** — `graphify/watch.py` resolves `out_dir` up-front and passes `<out_dir>/cache/` to `extract()` as the cache directory. When `--out-dir` is omitted the default remains `<source>/graphify-out/cache/`, so zero regression for users that never redirected outputs.
+- **New `--cache-dir <path>` flag on `graphify build`** — explicit override for CI / shared caches, independent of `--out-dir`.
+- **Cache API decoupled from source root** — `graphify/cache.py` splits the two uses of the `root` parameter: `file_hash(path, root)` still uses it for stable relative-path keys, but `cache_dir(root, cache_override=…)` now takes an optional explicit directory so callers can relocate the on-disk cache without invalidating hash keys. `load_cached` / `save_cached` / `cached_files` / `clear_cache` / `check_semantic_cache` / `save_semantic_cache` all accept the new `cache_override` kwarg.
+- **`graphify/extract.py:extract()` gains `cache_override`** — forwarded to `load_cached` / `save_cached`.
+- **Tests** — 5 new unit tests in `tests/test_cache.py` (override write/roundtrip/isolation/back-compat/clear) and 3 new integration tests in `tests/test_watch.py` (cache follows `out_dir`, explicit `cache_dir` wins, back-compat default). The pre-existing `test_watch.py` suite mocked `extract()`, so the original bug was invisible to CI — the new tests patch the stub and assert on the `cache_override` kwarg the real wiring passes through.
+- **Migration note** — users with stale `<src>/graphify-out/cache/` from earlier versions can safely `rm -rf` that directory after upgrading; the cache rebuilds into the new location on the next run.
+
 ## 0.5.3 (fork: ceo-tw, 2026-04-19)
 
 Graph-hygiene pass driven by `/graphify`'s own self-audit: extraction warnings 302 → 0, primitive-type noise nodes removed, rationale docstrings no longer inflate the isolated-node count, and the 1794-line CLI dispatcher loses its inline traversal handlers.

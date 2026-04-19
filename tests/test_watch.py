@@ -42,6 +42,76 @@ def test_rebuild_code_reads_persisted_labels(tmp_path, monkeypatch):
     assert "[BE/api] Sample Module" in html or "Community 0" not in html
 
 
+# --- _rebuild_code cache relocation ---
+
+def _stub_extract(captured):
+    """Build an extract() stub that captures the cache_override kwarg it sees."""
+    def _fake(files, **kwargs):
+        captured["cache_root"] = kwargs.get("cache_root")
+        captured["cache_override"] = kwargs.get("cache_override")
+        return {
+            "nodes": [{"id": "sample.foo", "label": "foo", "file": "sample.py", "file_type": "code"}],
+            "edges": [{"source": "sample.foo", "target": "sample.foo", "type": "DEFINES"}],
+            "hyperedges": [],
+            "input_tokens": 0,
+            "output_tokens": 0,
+        }
+    return _fake
+
+
+def test_rebuild_code_cache_follows_out_dir(tmp_path, monkeypatch):
+    """When out_dir is set and cache_dir is omitted, cache defaults to <out_dir>/cache/ — NOT <src>/graphify-out/cache/."""
+    import graphify.extract as extract_mod
+    captured: dict = {}
+    monkeypatch.setattr(extract_mod, "extract", _stub_extract(captured))
+
+    watch_path = tmp_path / "repo"
+    watch_path.mkdir()
+    (watch_path / "sample.py").write_text("def foo():\n    pass\n")
+
+    out = tmp_path / "elsewhere" / "graphify-out"
+    from graphify.watch import _rebuild_code
+    assert _rebuild_code(watch_path, out_dir=out)
+
+    assert captured["cache_override"] == (out / "cache").resolve()
+    assert captured["cache_root"] == watch_path.resolve(), "hash root stays at source tree"
+
+
+def test_rebuild_code_cache_dir_override(tmp_path, monkeypatch):
+    """Explicit cache_dir beats the <out_dir>/cache default."""
+    import graphify.extract as extract_mod
+    captured: dict = {}
+    monkeypatch.setattr(extract_mod, "extract", _stub_extract(captured))
+
+    watch_path = tmp_path / "repo"
+    watch_path.mkdir()
+    (watch_path / "sample.py").write_text("def bar():\n    pass\n")
+    out = tmp_path / "out"
+    explicit_cache = tmp_path / "shared-cache"
+
+    from graphify.watch import _rebuild_code
+    assert _rebuild_code(watch_path, out_dir=out, cache_dir=explicit_cache)
+
+    assert captured["cache_override"] == explicit_cache.resolve()
+
+
+def test_rebuild_code_default_cache_is_back_compat(tmp_path, monkeypatch):
+    """Without out_dir or cache_dir, cache stays at <watch_path>/graphify-out/cache/ — identical to pre-fix behavior."""
+    import graphify.extract as extract_mod
+    captured: dict = {}
+    monkeypatch.setattr(extract_mod, "extract", _stub_extract(captured))
+
+    watch_path = tmp_path / "repo"
+    watch_path.mkdir()
+    (watch_path / "sample.py").write_text("def baz():\n    pass\n")
+
+    from graphify.watch import _rebuild_code
+    assert _rebuild_code(watch_path)
+
+    expected = (watch_path / "graphify-out" / "cache").resolve()
+    assert captured["cache_override"] == expected
+
+
 # --- _notify_only ---
 
 def test_notify_only_creates_flag(tmp_path):

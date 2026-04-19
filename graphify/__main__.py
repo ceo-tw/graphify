@@ -152,25 +152,32 @@ def _parse_flags(
 def _cmd_build(args: list[str]) -> int:
     """AST + routes + http build producing graph.json + graph.html + GRAPH_REPORT.md.
 
-    Supports ``--directed``, ``--out-dir``, and ``--no-semantic``. The
-    ``--no-semantic`` flag is currently implicit (this CLI path never
-    invokes the Claude subagent semantic pass — it is AST + overlay only
-    — so the flag is accepted for compatibility with the documented
-    workflow). When LLM semantic extraction is needed, use the
-    ``/graphify`` skill flow inside Claude Code.
+    Supports ``--directed``, ``--out-dir``, ``--cache-dir``, and
+    ``--no-semantic``. When ``--cache-dir`` is omitted, the parser cache
+    lives at ``<out-dir>/cache/`` so it never pollutes the source tree
+    when outputs are redirected. The ``--no-semantic`` flag is currently
+    implicit (this CLI path never invokes the Claude subagent semantic
+    pass — it is AST + overlay only — so the flag is accepted for
+    compatibility with the documented workflow). When LLM semantic
+    extraction is needed, use the ``/graphify`` skill flow inside Claude
+    Code.
     """
     try:
         flags, positional = _parse_flags(args, {
             "--directed": "bool",
             "--no-semantic": "bool",
             "--out-dir": "value",
+            "--cache-dir": "value",
         })
     except _FlagError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     if not positional:
-        print("Usage: graphify build <source-root> [--directed] [--out-dir <dir>] [--no-semantic]",
-              file=sys.stderr)
+        print(
+            "Usage: graphify build <source-root> [--directed] [--out-dir <dir>] "
+            "[--cache-dir <dir>] [--no-semantic]",
+            file=sys.stderr,
+        )
         return 1
     source_root = Path(positional[0]).resolve()
     if not source_root.exists():
@@ -180,9 +187,18 @@ def _cmd_build(args: list[str]) -> int:
         Path(flags["--out-dir"]).resolve() if "--out-dir" in flags
         else source_root / "graphify-out"
     )
+    cache_dir_flag = (
+        Path(flags["--cache-dir"]).resolve() if "--cache-dir" in flags
+        else None
+    )
     directed = "--directed" in flags
     from .watch import _rebuild_code
-    ok = _rebuild_code(source_root, out_dir=out_dir, directed=directed)
+    ok = _rebuild_code(
+        source_root,
+        out_dir=out_dir,
+        directed=directed,
+        cache_dir=cache_dir_flag,
+    )
     if not ok:
         print("build failed — check messages above.", file=sys.stderr)
         return 1
@@ -1303,6 +1319,7 @@ def main() -> None:
         print("  build <source-root>     AST + routes + http build producing graph.json/html/md")
         print("    --directed              build a DiGraph (needed for callers/callees/blast)")
         print("    --out-dir <dir>         write graphify-out to an alternate directory")
+        print("    --cache-dir <dir>       relocate the parser cache (default: <out-dir>/cache)")
         print("    --no-semantic           document the AST/routes-only scope (flag is implicit)")
         print("  resolve <url>           list URL/API nodes matching a concrete URL plus 1-hop neighbors")
         print("    --method <METHOD>       filter API matches by HTTP method")

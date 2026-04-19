@@ -3167,7 +3167,11 @@ def _check_tree_sitter_version() -> None:
         )
 
 
-def extract(paths: list[Path], cache_root: Path | None = None) -> dict:
+def extract(
+    paths: list[Path],
+    cache_root: Path | None = None,
+    cache_override: Path | None = None,
+) -> dict:
     """Extract AST nodes and edges from a list of code files.
 
     Two-pass process:
@@ -3177,9 +3181,13 @@ def extract(paths: list[Path], cache_root: Path | None = None) -> dict:
 
     Args:
         paths: files to extract from
-        cache_root: explicit root for graphify-out/cache/ (overrides the
+        cache_root: explicit root for cache-key relative paths (overrides the
             inferred common path prefix). Pass Path('.') when running on a
-            subdirectory so the cache stays at ./graphify-out/cache/.
+            subdirectory so cache keys stay stable.
+        cache_override: explicit directory where cache *.json files should be
+            written. When set, bypasses the default ``<cache_root>/graphify-out/cache/``
+            location so the cache can live under ``--out-dir`` (or any
+            user-supplied path) instead of polluting the source tree.
     """
     _check_tree_sitter_version()
     per_file: list[dict] = []
@@ -3250,13 +3258,13 @@ def extract(paths: list[Path], cache_root: Path | None = None) -> dict:
             extractor = _DISPATCH.get(path.suffix)
         if extractor is None:
             continue
-        cached = load_cached(path, cache_root or root)
+        cached = load_cached(path, cache_root or root, cache_override=cache_override)
         if cached is not None:
             per_file.append(cached)
             continue
         result = extractor(path)
         if "error" not in result:
-            save_cached(path, result, cache_root or root)
+            save_cached(path, result, cache_root or root, cache_override=cache_override)
         per_file.append(result)
     if total >= _PROGRESS_INTERVAL:
         print(f"  AST extraction: {total}/{total} files (100%)", flush=True)

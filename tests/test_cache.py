@@ -124,3 +124,79 @@ def test_body_content_no_frontmatter():
     """_body_content returns content unchanged when no frontmatter present."""
     content = b"No frontmatter here."
     assert _body_content(content) == content
+
+
+# --- cache_override: relocate cache out of the source tree ---
+
+def test_cache_override_writes_to_custom_dir(tmp_path):
+    """save_cached + cache_override writes into the override dir, not <root>/graphify-out/cache/."""
+    src_root = tmp_path / "src"
+    src_root.mkdir()
+    override = tmp_path / "elsewhere" / "cache"
+
+    f = src_root / "sample.py"
+    f.write_text("x = 1")
+
+    save_cached(f, {"nodes": [], "edges": []}, root=src_root, cache_override=override)
+
+    assert override.exists()
+    assert list(override.glob("*.json")), "cache entry must land under override"
+    assert not (src_root / "graphify-out").exists(), "source tree must stay clean"
+
+
+def test_cache_override_roundtrip(tmp_path):
+    """load_cached reads from the same override dir it was saved to."""
+    src_root = tmp_path / "src"
+    src_root.mkdir()
+    override = tmp_path / "out" / "cache"
+    f = src_root / "sample.py"
+    f.write_text("y = 2")
+
+    result = {"nodes": [{"id": "n"}], "edges": []}
+    save_cached(f, result, root=src_root, cache_override=override)
+    loaded = load_cached(f, root=src_root, cache_override=override)
+    assert loaded == result
+
+
+def test_cache_override_isolated_from_default(tmp_path):
+    """A value written via override is NOT found at the default location and vice versa."""
+    src_root = tmp_path / "src"
+    src_root.mkdir()
+    override = tmp_path / "override" / "cache"
+    f = src_root / "sample.py"
+    f.write_text("z = 3")
+
+    save_cached(f, {"nodes": [{"id": "a"}], "edges": []},
+                root=src_root, cache_override=override)
+    # No entry at default location
+    assert load_cached(f, root=src_root) is None
+    # Entry visible via override
+    assert load_cached(f, root=src_root, cache_override=override) is not None
+
+
+def test_cache_override_default_is_back_compat(tmp_path):
+    """When cache_override is None, behavior is identical to pre-change code."""
+    f = tmp_path / "file.py"
+    f.write_text("q = 4")
+    save_cached(f, {"nodes": [], "edges": []}, root=tmp_path)
+    # Default path honored
+    default_dir = tmp_path / "graphify-out" / "cache"
+    assert default_dir.exists()
+    assert list(default_dir.glob("*.json"))
+
+
+def test_clear_cache_respects_override(tmp_path):
+    """clear_cache(override=...) wipes the override dir, not the default."""
+    src_root = tmp_path / "src"
+    src_root.mkdir()
+    override = tmp_path / "elsewhere" / "cache"
+    f = src_root / "sample.py"
+    f.write_text("a = 1")
+
+    save_cached(f, {"nodes": [], "edges": []}, root=src_root, cache_override=override)
+    assert list(override.glob("*.json"))
+
+    clear_cache(src_root, cache_override=override)
+    assert not list(override.glob("*.json"))
+    # Default dir was never created
+    assert not (src_root / "graphify-out" / "cache").exists()
