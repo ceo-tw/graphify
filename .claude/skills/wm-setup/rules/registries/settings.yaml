@@ -1,0 +1,377 @@
+# Settings Registry
+# Single source of truth for environment variables, plugins, and configuration
+# To add a setting: Add new item with unique ID (ENV-XXX, PLG-XXX, CFG-XXX)
+
+version: "1.0"
+type: "settings"
+last_updated: "2026-01-25"
+
+# === Environment Variables ===
+environment:
+  - id: "ENV-001"
+    name: "ENABLE_TOOL_SEARCH"
+    required: false
+    defaultValue: "auto:0"
+    recommendedValue: "auto:0"
+    recommendedRationale: "Avoid tool search overhead in production; auto:0 provides optimal performance"
+    description: "Enable automatic tool search behavior"
+    validation:
+      type: "env_defined"
+
+  - id: "ENV-002"
+    name: "MAX_THINKING_TOKENS"
+    required: false
+    defaultValue: "31999"
+    recommendedValue: "31999"
+    recommendedRationale: "Maximum extended thinking capacity for complex tasks and deep reasoning"
+    description: "Maximum thinking tokens for extended reasoning"
+    validation:
+      type: "env_defined"
+
+  - id: "ENV-003"
+    name: "CLAUDE_PROJECT_DIR"
+    required: true
+    defaultValue: null
+    recommendedValue: null
+    recommendedRationale: "Auto-set by Claude Code based on current working directory"
+    description: "Project directory path (set by Claude Code)"
+    validation:
+      type: "env_defined"
+
+  - id: "ENV-004"
+    name: "QUALITY_CHECK_PATHS"
+    required: false
+    defaultValue: null
+    recommendedValue: null
+    recommendedRationale: "Auto-detected from TypeScript domains in domains.yaml"
+    description: "Paths to check for code quality (comma-separated, e.g., 'dashboard/,collector/')"
+    validation:
+      type: "env_defined_or_auto_detect"
+      autoDetectSource: "domains.yaml"
+      autoDetectFilter: "TypeScript"
+
+# === Plugins ===
+plugins:
+  - id: "PLG-001"
+    name: "typescript-lsp"
+    packageName: "typescript-lsp@claude-plugins-official"
+    required: true
+    usedBy: ["codebase-explorer skill", "code-quality skill"]
+    recommendedConfig:
+      autoStart: true
+      diagnosticsOnSave: true
+    description: "TypeScript Language Server Protocol support"
+    validation:
+      type: "plugin_enabled"
+
+  - id: "PLG-002"
+    name: "serena"
+    packageName: "serena@claude-plugins-official"
+    required: true
+    usedBy:
+      - "design agent"
+      - "planner-task agent"
+      - "dev-executor agent"
+      - "bug-fixer agent"
+      - "root-cause-finder agent"
+      - "knowledge-keeper agent"
+      - "qa agent"
+      - "codebase-explorer skill"
+      - "code-quality skill"
+    recommendedConfig:
+      autoStart: true
+      indexOnOpen: true
+    description: "Semantic code analysis and navigation"
+    validation:
+      type: "plugin_enabled"
+
+  - id: "PLG-003"
+    name: "commit-commands"
+    packageName: "commit-commands@claude-plugins-official"
+    required: false
+    usedBy: []  # NOT USED → SKIP
+    recommendedConfig:
+      enabled: true
+    description: "Git commit workflow commands"
+    validation:
+      type: "plugin_enabled"
+
+  - id: "PLG-004"
+    name: "security-guidance"
+    packageName: "security-guidance@claude-plugins-official"
+    required: false
+    usedBy: []  # NOT USED → SKIP
+    recommendedConfig:
+      scanOnWrite: false
+    description: "Security best practices guidance"
+    validation:
+      type: "plugin_enabled"
+
+  - id: "PLG-005"
+    name: "vercel"
+    packageName: "vercel@claude-plugins-official"
+    required: false
+    usedBy: []  # NOT USED → SKIP
+    recommendedConfig:
+      autoDetectProject: true
+    description: "Vercel deployment integration"
+    validation:
+      type: "plugin_enabled"
+
+  - id: "PLG-006"
+    name: "vscode-html-css"
+    packageName: "vscode-html-css@claude-code-lsps"
+    required: false
+    usedBy: []  # NOT USED → SKIP
+    recommendedConfig:
+      autoStart: true
+    description: "HTML/CSS language support"
+    validation:
+      type: "plugin_enabled"
+
+# === Configuration Settings ===
+config:
+  - id: "CFG-001"
+    name: "plansDirectory"
+    path: "plansDirectory"
+    expectedValue: ".claude/plans"
+    required: true
+    description: "Directory for plan files"
+    validation:
+      type: "config_value"
+
+  - id: "CFG-002"
+    name: "hooks"
+    path: "hooks"
+    expectedValue: null
+    required: true
+    description: "Hooks configuration object (non-empty)"
+    validation:
+      type: "config_exists"
+
+  - id: "CFG-003"
+    name: "enabledPlugins"
+    path: "enabledPlugins"
+    expectedValue: null
+    required: true
+    description: "Enabled plugins configuration"
+    validation:
+      type: "config_exists"
+
+# === MCP Servers (Optional) ===
+mcpServers:
+  - id: "MCP-001"
+    name: "playwright"
+    required: false
+    priority: "CRITICAL"
+    description: "Playwright browser automation — required for E2E testing workflows"
+    usedBy:
+      - "playwright-test-planner agent"
+      - "playwright-test-generator agent"
+      - "playwright-test-healer agent"
+      - "root-cause-finder agent"
+      - "e2e-test skill"
+    testCommand: "mcp__playwright__screenshot"
+    expectedTools:
+      - "screenshot"
+      - "navigate"
+      - "click"
+    validation:
+      type: "mcp_available"
+
+  - id: "MCP-005"
+    name: "serena"
+    required: false
+    priority: "CRITICAL"
+    description: "Semantic code analysis MCP server — required for LSP-based navigation and symbol operations"
+    usedBy:
+      - "design agent"
+      - "planner-task agent"
+      - "dev-executor agent"
+      - "bug-fixer agent"
+      - "root-cause-finder agent"
+      - "knowledge-keeper agent"
+      - "qa agent"
+      - "codebase-explorer skill"
+      - "code-quality skill"
+    testCommand: "mcp__plugin_serena_serena__find_symbol"
+    expectedTools:
+      - "mcp__plugin_serena_serena__find_symbol"
+      - "mcp__plugin_serena_serena__get_symbols_overview"
+      - "mcp__plugin_serena_serena__replace_symbol_body"
+    validation:
+      type: "mcp_available"
+
+  - id: "MCP-006"
+    name: "atlassian"
+    required: false
+    priority: "CRITICAL"
+    description: "Atlassian (Jira/Confluence) integration — required for plan-to-jira, confluence-update skills"
+    usedBy:
+      - "plan-to-jira skill"
+      - "confluence-update skill"
+      - "atlassian:* skill family"
+    testCommand: "mcp__atlassian__list_projects"
+    expectedTools:
+      - "list_projects"
+      - "get_issue"
+    validation:
+      type: "mcp_available"
+
+  - id: "MCP-002"
+    name: "memory"
+    required: false
+    priority: "HIGH"
+    description: "Knowledge graph memory storage"
+    usedBy:
+      - "knowledge-keeper agent"
+      - "bug-fixer agent"
+      - "root-cause-finder agent"
+      - "design agent"
+      - "planner-task agent"
+      - "qa agent"
+    testCommand: "mcp__memory__read_graph"
+    expectedTools:
+      - "create_entities"
+      - "read_graph"
+      - "search_nodes"
+    validation:
+      type: "mcp_available"
+
+  - id: "MCP-007"
+    name: "context7"
+    required: false
+    priority: "HIGH"
+    description: "Up-to-date library documentation fetcher"
+    usedBy:
+      - "dev-executor agent"
+      - "design agent"
+      - "documentation-lookup skill"
+    testCommand: "mcp__context7__resolve-library-id"
+    expectedTools:
+      - "resolve-library-id"
+      - "get-library-docs"
+    validation:
+      type: "mcp_available"
+
+  - id: "MCP-008"
+    name: "shadcn"
+    required: false
+    priority: "HIGH"
+    description: "shadcn/ui component registry integration"
+    usedBy:
+      - "shadcn skill"
+      - "dev-executor agent (UI components)"
+    testCommand: "mcp__shadcn__list_components"
+    expectedTools:
+      - "list_components"
+    validation:
+      type: "mcp_available"
+
+  - id: "MCP-003"
+    name: "tavily"
+    required: false
+    priority: "MEDIUM"
+    description: "Web search API"
+    usedBy:
+      - "research skill"
+    testCommand: "mcp__tavily__tavily_search"
+    expectedTools:
+      - "tavily_search"
+    validation:
+      type: "mcp_available"
+
+  - id: "MCP-004"
+    name: "pencil"
+    required: false
+    priority: "MEDIUM"
+    description: "Pencil design tool integration for .pen files"
+    usedBy:
+      - "design-artifact skill"
+      - "ui skill"
+    testCommand: "mcp__pencil__get_editor_state"
+    expectedTools:
+      - "get_editor_state"
+      - "batch_get"
+      - "batch_design"
+    validation:
+      type: "mcp_available"
+
+# === Summary ===
+# Environment Variables: 4 (1 required)
+# Plugins: 6 (2 required: typescript-lsp, serena)
+# Config Settings: 3 (3 required)
+# MCP Servers: 8 (0 required, all optional)
+#   CRITICAL: serena, playwright, atlassian
+#   HIGH: memory, context7, shadcn
+#   MEDIUM: tavily, pencil
+# Model Profiles: 3 (balanced is default)
+
+# === Model Profiles ===
+# Profile-based model selection for quality/cost trade-offs
+# Reference: .claude/skills/wm/rules/policies/guide-model-profiles.md
+modelProfiles:
+  - id: "PROF-001"
+    name: "quality"
+    description: "품질 우선 프로파일 - 중요한 프로덕션 기능, 복잡한 아키텍처 결정"
+    default: false
+    agents:
+      design: opus
+      planner-task: opus
+      dev-executor: opus
+      qa: sonnet
+      Explore: sonnet
+    usedBy:
+      - "Critical production features"
+      - "Complex architectural decisions"
+      - "High-risk refactoring"
+      - "Regulatory compliance required"
+    estimatedCostPerFeature: "$5-10"
+    characteristics:
+      - "Maximum reasoning capability"
+      - "Highest accuracy"
+      - "Best architectural decisions"
+      - "Premium cost"
+
+  - id: "PROF-002"
+    name: "balanced"
+    description: "균형 프로파일 - 표준 기능 개발, 대부분의 프로젝트에 권장"
+    default: true
+    agents:
+      design: opus
+      planner-task: sonnet
+      dev-executor: sonnet
+      qa: sonnet
+      Explore: haiku
+    usedBy:
+      - "Standard feature development"
+      - "Typical projects"
+      - "Balanced quality/cost needed"
+    estimatedCostPerFeature: "$3-5"
+    characteristics:
+      - "Good reasoning capability"
+      - "Reasonable cost"
+      - "Recommended for most projects"
+      - "Default profile"
+
+  - id: "PROF-003"
+    name: "budget"
+    description: "비용 우선 프로파일 - PoC, 내부 도구, 실험적 기능"
+    default: false
+    agents:
+      design: sonnet
+      planner-task: sonnet
+      dev-executor: sonnet
+      qa: haiku
+      Explore: haiku
+    usedBy:
+      - "Proof-of-concept projects"
+      - "Internal tools"
+      - "Learning/experimental features"
+      - "Cost constraints are strict"
+    estimatedCostPerFeature: "$1-3"
+    characteristics:
+      - "Fast execution"
+      - "Lowest cost"
+      - "Acceptable quality for non-critical work"
+      - "May require more iterations"

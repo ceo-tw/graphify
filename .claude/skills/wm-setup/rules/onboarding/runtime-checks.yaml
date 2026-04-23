@@ -1,0 +1,197 @@
+# Runtime Checks Registry
+# Defines runtime validation checks for Post-VERIFY workflow
+# This registry is used exclusively by runtime-validator.md in VERIFY mode
+
+version: "1.0"
+type: "runtime-checks"
+last_updated: "2026-01-27"
+
+categories:
+  # ===== RC-MCP: MCP Connectivity =====
+  - id: "RC-MCP"
+    name: "MCP Connectivity"
+    description: "Verify MCP servers are connected and responding"
+    checks:
+      - id: "RTC-MCP-001"
+        name: "Serena MCP Connection"
+        server: "serena"
+        testType: "list_tools"
+        expectedTools:
+          - "mcp__plugin_serena_serena__find_symbol"
+          - "mcp__plugin_serena_serena__get_symbols_overview"
+          - "mcp__plugin_serena_serena__replace_symbol_body"
+        severity: "CRITICAL"
+        required: true
+        remediation: "Enable Serena MCP server in Claude Code settings"
+
+      - id: "RTC-MCP-002"
+        name: "Memory MCP Connection"
+        server: "memory"
+        testType: "list_tools"
+        expectedTools:
+          - "mcp__memory__create_entities"
+          - "mcp__memory__read_graph"
+        severity: "WARNING"
+        required: false
+        remediation: "Install and configure Memory MCP server"
+
+      - id: "RTC-MCP-003"
+        name: "Playwright MCP Connection"
+        server: "playwright"
+        testType: "list_tools"
+        expectedTools:
+          - "mcp__playwright__screenshot"
+          - "mcp__playwright__navigate"
+        severity: "INFO"
+        required: false
+        remediation: "Install Playwright MCP server for E2E testing"
+
+  # ===== RC-ENV: Environment Values =====
+  - id: "RC-ENV"
+    name: "Environment Values"
+    description: "Compare current env values with recommendations"
+    checks:
+      - id: "RTC-ENV-001"
+        name: "MAX_THINKING_TOKENS"
+        testType: "value_compare"
+        envVar: "MAX_THINKING_TOKENS"
+        recommendedValue: "31999"
+        rationale: "Extended thinking for complex tasks"
+        severity: "WARNING"
+        remediation: "Set MAX_THINKING_TOKENS=31999 in environment"
+
+      - id: "RTC-ENV-002"
+        name: "ENABLE_TOOL_SEARCH"
+        testType: "value_compare"
+        envVar: "ENABLE_TOOL_SEARCH"
+        recommendedValue: "auto:0"
+        rationale: "Avoid tool search overhead in production"
+        severity: "INFO"
+        remediation: "Set ENABLE_TOOL_SEARCH=auto:0 in environment"
+
+  # ===== RC-PERM: Permission Config =====
+  - id: "RC-PERM"
+    name: "Permission Config"
+    description: "Verify permission settings are appropriate"
+    checks:
+      - id: "RTC-PERM-001"
+        name: "Essential Tools Allowed"
+        testType: "config_check"
+        configPath: "permissions.allow"
+        checkType: "contains"
+        expectedPatterns:
+          - "Bash(*)"
+          - "Read(*)"
+          - "Write(*)"
+        severity: "WARNING"
+        remediation: "Review permissions.allow in settings.json"
+
+  # ===== RC-PLUG: Plugin Functionality =====
+  - id: "RC-PLUG"
+    name: "Plugin Functionality"
+    description: "Test actual plugin operations"
+    checks:
+      - id: "RTC-PLUG-001"
+        name: "TypeScript LSP Response"
+        plugin: "typescript-lsp"
+        testType: "tool_call"
+        testCommand: "LSP hover on TypeScript file"
+        expectedResult: "Type information returned"
+        severity: "CRITICAL"
+        remediation: "Enable typescript-lsp plugin"
+
+      - id: "RTC-PLUG-002"
+        name: "Serena Plugin Response"
+        plugin: "serena"
+        testType: "tool_call"
+        testCommand: "get_symbols_overview on sample file"
+        expectedResult: "Symbols list returned"
+        severity: "CRITICAL"
+        remediation: "Enable serena plugin and verify installation"
+
+  # ===== RC-HOOK: Hook Integration =====
+  - id: "RC-HOOK"
+    name: "Hook Integration"
+    description: "Test hook script execution"
+    checks:
+      - id: "RTC-HOOK-001"
+        name: "Pre-Write Hook Execution"
+        hookType: "PreToolUse"
+        matcher: "Write"
+        testType: "exec_script"
+        scriptPath: ".claude/hooks/pre-write-approval.sh"
+        expectedExitCode: 0
+        severity: "WARNING"
+        remediation: "Verify hook script exists and is executable"
+
+  # ===== RC-AGENT: Agent Workflow =====
+  - id: "RC-AGENT"
+    name: "Agent Workflow"
+    description: "Verify agent invocation patterns"
+    checks:
+      - id: "RTC-AGENT-001"
+        name: "Agent Files Parseable"
+        testType: "file_parse"
+        pattern: ".claude/agents/*.md"
+        checkType: "frontmatter_valid"
+        severity: "WARNING"
+        remediation: "Fix frontmatter syntax in agent markdown files"
+
+      - id: "RTC-AGENT-002"
+        name: "Skill Files Parseable"
+        testType: "file_parse"
+        pattern: ".claude/skills/*/SKILL.md"
+        checkType: "frontmatter_valid"
+        severity: "WARNING"
+        remediation: "Fix frontmatter syntax in skill markdown files"
+
+  # ===== RC-GRAPHIFY: Graphify Runtime =====
+  - id: "RC-GRAPHIFY"
+    name: "graphify-runtime"
+    description: "Verify graphify fork is installed and functional (v0.5.x, required subcommands)"
+    checks:
+      - id: "RTC-GRAPHIFY-001"
+        name: "graphify-cli-version"
+        command: ".claude/graphify/.venv/bin/graphify --version"
+        expect_regex: "^graphify 0\\.5\\."
+        severity: critical
+        required: true
+        remediation: "Run wm-setup to reinstall graphify from fork: python3.12 -m venv .claude/graphify/.venv && .claude/graphify/.venv/bin/pip install 'git+https://github.com/ceo-tw/graphify.git@v4'"
+
+      - id: "RTC-GRAPHIFY-002"
+        name: "graphify-subcommands"
+        command: ".claude/graphify/.venv/bin/graphify --help"
+        expect_contains:
+          - "resolve"
+          - "callers"
+          - "callees"
+          - "blast"
+        severity: critical
+        required: true
+        remediation: "PyPI graphifyy is installed instead of fork. Reinstall from git+https://github.com/ceo-tw/graphify.git@v4"
+
+      - id: "RTC-GRAPHIFY-003"
+        name: "global-graph-nonempty"
+        command: "jq -e '.nodes|length>0' .claude/architecture/graph/_global/graphify-out/graph.json"
+        expect_exit: 0
+        severity: critical
+        required: true
+        remediation: "Rebuild _global graph: .claude/graphify/.venv/bin/graphify build ./src --directed --out-dir .claude/architecture/graph/_global/graphify-out"
+
+  # ===== RC-PLAYWRIGHT: Playwright Browser Runtime =====
+  - id: "RC-PLAYWRIGHT"
+    name: "playwright-runtime"
+    description: "Verify Playwright CLI is available (browser installs checked separately)"
+    checks:
+      - id: "RTC-PLAYWRIGHT-001"
+        name: "playwright-installed"
+        command: "cd src/admin-portal && npx playwright --version 2>/dev/null"
+        expect_regex: "^Version"
+        severity: warning
+        required: false
+        remediation: "Install Playwright: cd src/admin-portal && npm install && npx playwright install"
+
+# Summary
+# Categories: 8 (RC-MCP, RC-ENV, RC-PERM, RC-PLUG, RC-HOOK, RC-AGENT, RC-GRAPHIFY, RC-PLAYWRIGHT)
+# Total Checks: 15
+# Critical: 6 | Warning: 7 | Info: 2

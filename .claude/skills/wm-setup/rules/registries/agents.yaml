@@ -1,0 +1,204 @@
+# Agents Registry
+# Single source of truth for core agents verification
+# To add an agent: Add new item with unique ID (AGT-XXX)
+
+version: "2.0"
+type: "agents"
+last_updated: "2026-04-21"
+
+items:
+  # === Core Development Agents ===
+  # AGT-000: plan-validator — REMOVED (merged into wm Step 2/4, 2026-03-07)
+  # planner-phase — REMOVED (merged into wm Step 4 Plan Writing, 2026-03-07)
+  # task-validator — REMOVED (merged into planner-task self-validation, 2026-03-07)
+
+  - id: "AGT-001"
+    name: "design"
+    path: ".claude/agents/design.md"
+    priority: "CRITICAL"
+    category: "core-development"
+    invokes: []
+    invokedBy: ["wm skill"]
+    description: "Architecture and technical design"
+    validation:
+      type: "exists"
+
+  - id: "AGT-002"
+    name: "planner-task"
+    path: ".claude/agents/planner-task.md"
+    priority: "CRITICAL"
+    category: "core-development"
+    invokes: ["dev-executor"]
+    invokedBy: ["wm skill"]
+    description: "Break phases into executable tasks with TDD workflow + self-validation"
+    validation:
+      type: "exists"
+
+  - id: "AGT-003"
+    name: "dev-executor"
+    path: ".claude/agents/dev-executor.md"
+    priority: "CRITICAL"
+    category: "core-development"
+    invokes: ["qa"]
+    invokedBy: ["wm skill"]
+    description: "Execute implementation tasks with TDD workflow"
+    validation:
+      type: "exists"
+
+  - id: "AGT-004"
+    name: "qa"
+    path: ".claude/agents/qa.md"
+    priority: "CRITICAL"
+    category: "core-development"
+    invokes: []
+    invokedBy: ["dev-executor"]
+    description: "Comprehensive QA validation"
+    validation:
+      type: "exists"
+
+  # === Review & Analysis Agents ===
+
+  - id: "AGT-012"
+    name: "review-orchestrator"
+    path: ".claude/agents/review-orchestrator.md"
+    priority: "CRITICAL"
+    category: "review"
+    invokes: []
+    invokedBy: ["wm skill"]
+    description: "Orchestrates PR review with Graphify Fast Pass for cross-service drift and layer violation detection"
+    validation:
+      type: "exists"
+
+  - id: "AGT-013"
+    name: "knowledge-graph-navigator"
+    path: ".claude/agents/knowledge-graph-navigator.md"
+    priority: "CRITICAL"
+    category: "review"
+    invokes: []
+    invokedBy: ["wm skill", "review-orchestrator"]
+    description: "Navigate graphify domain graphs for blast-radius analysis and dependency queries"
+    validation:
+      type: "exists"
+
+  # === Bug Resolution Agents ===
+
+  - id: "AGT-005"
+    name: "root-cause-finder"
+    path: ".claude/agents/root-cause-finder.md"
+    priority: "CRITICAL"
+    category: "bug-resolution"
+    invokes: []
+    invokedBy: ["solve skill"]
+    description: "Find root cause using 5 Whys methodology"
+    validation:
+      type: "exists"
+
+  - id: "AGT-006"
+    name: "bug-fixer"
+    path: ".claude/agents/bug-fixer.md"
+    priority: "CRITICAL"
+    category: "bug-resolution"
+    invokes: []
+    invokedBy: ["solve skill"]
+    description: "Implement bug fix using TDD approach"
+    validation:
+      type: "exists"
+
+  - id: "AGT-007"
+    name: "knowledge-keeper"
+    path: ".claude/agents/knowledge-keeper.md"
+    priority: "HIGH"
+    category: "bug-resolution"
+    invokes: []
+    invokedBy: ["solve skill"]
+    description: "Record bug resolution to knowledge base"
+    validation:
+      type: "exists"
+
+  - id: "AGT-014"
+    name: "build-error-resolver"
+    path: ".claude/agents/build-error-resolver.md"
+    priority: "HIGH"
+    category: "bug-resolution"
+    invokes: []
+    invokedBy: ["wm skill", "dev-executor"]
+    description: "Diagnose and resolve build and compilation errors"
+    validation:
+      type: "exists"
+
+  - id: "AGT-015"
+    name: "security-reviewer"
+    path: ".claude/agents/security-reviewer.md"
+    priority: "HIGH"
+    category: "review"
+    invokes: []
+    invokedBy: ["wm skill"]
+    description: "Security vulnerability and compliance review"
+    validation:
+      type: "exists"
+
+  - id: "AGT-016"
+    name: "performance-optimizer"
+    path: ".claude/agents/performance-optimizer.md"
+    priority: "HIGH"
+    category: "review"
+    invokes: []
+    invokedBy: ["wm skill"]
+    description: "Performance analysis and optimization recommendations"
+    validation:
+      type: "exists"
+
+  # === E2E Testing Agents ===
+
+  - id: "AGT-008"
+    name: "playwright-test-planner"
+    path: ".claude/agents/playwright-test-planner.md"
+    priority: "MEDIUM"
+    category: "e2e-testing"
+    invokes: ["playwright-test-generator"]
+    invokedBy: ["e2e-test skill"]
+    description: "Create comprehensive E2E test plans"
+    validation:
+      type: "exists"
+
+  - id: "AGT-009"
+    name: "playwright-test-generator"
+    path: ".claude/agents/playwright-test-generator.md"
+    priority: "MEDIUM"
+    category: "e2e-testing"
+    invokes: []
+    invokedBy: ["playwright-test-planner"]
+    description: "Generate automated browser tests using Playwright"
+    validation:
+      type: "exists"
+
+  - id: "AGT-010"
+    name: "playwright-test-healer"
+    path: ".claude/agents/playwright-test-healer.md"
+    priority: "MEDIUM"
+    category: "e2e-testing"
+    invokes: []
+    invokedBy: ["e2e-test skill"]
+    description: "Debug and fix failing Playwright tests"
+    validation:
+      type: "exists"
+
+  # === Built-in Agents ===
+
+  - id: "AGT-011"
+    name: "Explore (built-in)"
+    path: "N/A (built-in subagent)"
+    priority: "HIGH"
+    category: "analysis"
+    invokes: []
+    invokedBy: ["wm skill - INQUIRY process"]
+    description: "Codebase exploration with 4 type system (LOCATE, ANALYZE, COLLECT, ASSESS)"
+    validation:
+      type: "skip"  # Built-in, no file to verify
+
+# === Summary ===
+# CRITICAL: 8 (design, planner-task, dev-executor, qa, review-orchestrator, knowledge-graph-navigator, root-cause-finder, bug-fixer)
+# HIGH: 5 (knowledge-keeper, build-error-resolver, security-reviewer, performance-optimizer, Explore built-in)
+# MEDIUM: 3 (playwright-test-planner, playwright-test-generator, playwright-test-healer)
+# Total: 15 agents + 1 built-in
+# Removed: plan-validator (wm), planner-phase (wm Step 4), task-validator (planner-task)

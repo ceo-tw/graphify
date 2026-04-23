@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Minimal Tier 1 Fixture — PHASE 4 Contract Health Check</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0a0a0a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, sans-serif;
+      overflow: hidden;
+    }
+
+    deck-stage {
+      display: block;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .ds-canvas {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+
+    section {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    section[data-active="true"] {
+      display: flex;
+    }
+
+    /* Slide 1 — blue */
+    section:nth-child(1) {
+      background: #1a3a6b;
+      color: #ffffff;
+    }
+
+    /* Slide 2 — green */
+    section:nth-child(2) {
+      background: #1a5c38;
+      color: #f0fff4;
+    }
+
+    /* Slide 3 — dark red */
+    section:nth-child(3) {
+      background: #5c1a1a;
+      color: #fff5f5;
+    }
+
+    h1 {
+      font-size: 72px;
+      font-weight: 700;
+      letter-spacing: -1px;
+      text-align: center;
+    }
+
+    p {
+      font-size: 36px;
+      font-weight: 400;
+      opacity: 0.85;
+      text-align: center;
+      max-width: 1200px;
+      line-height: 1.5;
+    }
+
+    .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 8px;
+      padding: 8px 24px;
+      font-size: 24px;
+      letter-spacing: 2px;
+    }
+  </style>
+</head>
+<body>
+
+  <deck-stage id="deck">
+    <div class="ds-canvas">
+
+      <section data-active="true">
+        <h1>Minimal Tier 1</h1>
+        <p>Slide 1 of 3 — Contract Health Check</p>
+        <span class="badge">PHASE 4 · FIXTURE A</span>
+      </section>
+
+      <section>
+        <h1>Contract Verified</h1>
+        <p>Tier 1 API exposed. Speaker notes length === 3. Freeze hook implemented.</p>
+        <span class="badge">vector_tier1 = true</span>
+      </section>
+
+      <section>
+        <h1>No External Dependencies</h1>
+        <p>All resources are inline. CORS not required. freezeForExport() is synchronous.</p>
+        <span class="badge">cors_ok = true</span>
+      </section>
+
+    </div>
+  </deck-stage>
+
+  <!-- Speaker notes: length MUST equal slideCount (3) -->
+  <script id="speaker-notes" type="application/json">
+[
+  "Slide 1: Introduction — minimal-tier1 fixture for PHASE 4 contract health check. This slide verifies the Tier 1 API is correctly exposed.",
+  "Slide 2: Contract verification — vector_tier1 is true, structure is valid, all Tier 1 API methods are available.",
+  "Slide 3: No external dependencies — all resources are inline, no CORS required, freezeForExport is synchronous."
+]
+  </script>
+
+  <script>
+    /**
+     * deck-stage custom element definition.
+     * Minimal implementation — no shadow DOM (vector_shadow_dom_ok = true).
+     */
+    class DeckStage extends HTMLElement {
+      constructor() {
+        super();
+        // No shadow DOM: all rendering is in light DOM for dom-to-pptx compatibility
+      }
+
+      connectedCallback() {
+        // Ensure first slide is active on connect
+        const sections = this._getSections();
+        if (sections.length > 0) {
+          const anyActive = sections.some(s => s.dataset.active === 'true');
+          if (!anyActive) {
+            sections[0].dataset.active = 'true';
+          }
+        }
+        this._currentIndex = 0;
+      }
+
+      _getSections() {
+        const canvas = this.querySelector('.ds-canvas');
+        const parent = canvas || this;
+        return Array.from(parent.querySelectorAll(':scope > section'));
+      }
+    }
+
+    customElements.define('deck-stage', DeckStage);
+
+    // -------------------------------------------------------------------------
+    // Tier 1 window.__deck API
+    // MUST: getSlideCount, goToSlide, getCurrentSlide, freezeForExport
+    // -------------------------------------------------------------------------
+    window.__deck = (function () {
+      let _currentSlide = 0; // 0-based internally
+
+      function getSections() {
+        const stage = document.querySelector('deck-stage');
+        const canvas = stage ? stage.querySelector('.ds-canvas') : null;
+        const parent = canvas || stage || document.body;
+        return Array.from(parent.querySelectorAll(':scope > section'));
+      }
+
+      function getSlideCount() {
+        return getSections().length;
+      }
+
+      function goToSlide(index) {
+        // index is 0-based
+        const sections = getSections();
+        if (index < 0 || index >= sections.length) return;
+        sections.forEach((s, i) => {
+          s.dataset.active = i === index ? 'true' : 'false';
+        });
+        _currentSlide = index;
+      }
+
+      function getCurrentSlide() {
+        return _currentSlide;
+      }
+
+      /**
+       * freezeForExport — PHASE 1 Contract MUST.
+       * Halts all animations, sets all sections to their initial (static) state.
+       * Synchronous — no async work needed for this fixture.
+       */
+      function freezeForExport() {
+        const sections = getSections();
+        // For this fixture there are no CSS animations to freeze,
+        // but we implement the hook as required by contract.
+        sections.forEach(s => {
+          s.style.animationPlayState = 'paused';
+          s.style.transitionDuration = '0ms';
+        });
+        return true; // indicate freeze was applied
+      }
+
+      // Keyboard navigation
+      document.addEventListener('keydown', (e) => {
+        const count = getSlideCount();
+        if (e.key === 'ArrowRight' && _currentSlide < count - 1) {
+          goToSlide(_currentSlide + 1);
+        } else if (e.key === 'ArrowLeft' && _currentSlide > 0) {
+          goToSlide(_currentSlide - 1);
+        }
+      });
+
+      return {
+        getSlideCount,
+        goToSlide,
+        getCurrentSlide,
+        freezeForExport,
+      };
+    })();
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sample Deck — design-artifact fixture</title>
+
+  <!--
+    Fixture: sample-deck.html
+    Purpose: tier-1 deck_api branch test fixture.
+    Verifies:
+      - <deck-stage> web component with 3 <section> children
+      - window.__deck API: getSlideCount(), goToSlide(n), getCurrentSlide()
+      - Speaker notes JSON (3 entries)
+      - noscale attribute disables transform scaling
+      - 1920×1080 canvas
+      - Korean content
+  -->
+
+  <!-- Speaker Notes JSON (3 entries, 0-indexed matching slide order) -->
+  <script type="application/json" id="speaker-notes">
+[
+  "첫 번째 슬라이드입니다. 제품의 핵심 가치를 한 문장으로 전달합니다. 청중이 처음 3초 안에 무엇을 보게 될지 결정하는 중요한 슬라이드입니다.",
+  "두 번째 슬라이드에서는 주요 기능 세 가지를 소개합니다. 각 기능의 사용자 가치에 집중하여 설명합니다. 기술적 세부사항보다 결과를 강조하세요.",
+  "마지막 슬라이드입니다. 행동 유도 문구와 다음 단계를 명확히 제시합니다. 청중이 발표 후 무엇을 해야 하는지 구체적으로 안내합니다."
+]
+  </script>
+
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: #0a0a0a;
+      overflow: hidden;
+      font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+    }
+
+    /* ── deck-stage outer shell ── */
+    deck-stage {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100vw;
+      height: 100vh;
+      background: #0a0a0a;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* ── canvas wrapper (1920×1080, scaled) ── */
+    deck-stage .ds-canvas {
+      width: 1920px;
+      height: 1080px;
+      position: relative;
+      transform-origin: center center;
+      overflow: hidden;
+    }
+
+    /* noscale: disable transform so layout is natural 1:1 */
+    deck-stage[noscale] .ds-canvas {
+      transform: none !important;
+    }
+
+    /* ── section visibility ── */
+    deck-stage .ds-canvas > section {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      display: none;
+      overflow: hidden;
+    }
+
+    deck-stage .ds-canvas > section[data-active="true"] {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── slide counter overlay ── */
+    .ds-counter {
+      position: fixed;
+      bottom: 24px;
+      right: 32px;
+      z-index: 100;
+      background: rgba(0, 0, 0, 0.55);
+      color: #fff;
+      font-size: 13px;
+      font-family: 'Pretendard', 'Apple SD Gothic Neo', sans-serif;
+      letter-spacing: 0.04em;
+      padding: 6px 14px;
+      border-radius: 20px;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    /* ── print: one slide per page ── */
+    @media print {
+      deck-stage {
+        display: block;
+        width: auto;
+        height: auto;
+        background: none;
+      }
+
+      deck-stage .ds-canvas {
+        transform: none !important;
+        width: 100%;
+        height: auto;
+      }
+
+      deck-stage .ds-canvas > section {
+        display: flex !important;
+        position: relative;
+        width: 100%;
+        height: auto;
+        page-break-after: always;
+        break-after: page;
+        min-height: 100vh;
+      }
+
+      .ds-counter {
+        display: none;
+      }
+    }
+
+    /* ── Slide 1: 타이틀 슬라이드 ── */
+    .slide-title {
+      background: #0f1117;
+      color: #ffffff;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+    }
+
+    .slide-title .s1-eyebrow {
+      font-size: 22px;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #6c8eff;
+      margin-bottom: 32px;
+    }
+
+    .slide-title .s1-headline {
+      font-size: 96px;
+      font-weight: 700;
+      line-height: 1.08;
+      letter-spacing: -0.02em;
+      text-align: center;
+      max-width: 1400px;
+      color: #ffffff;
+      margin-bottom: 40px;
+    }
+
+    .slide-title .s1-sub {
+      font-size: 32px;
+      font-weight: 400;
+      color: #8a9ab8;
+      text-align: center;
+      max-width: 900px;
+      line-height: 1.5;
+    }
+
+    .slide-title .s1-divider {
+      width: 64px;
+      height: 3px;
+      background: #6c8eff;
+      margin: 48px auto 0;
+      border-radius: 2px;
+    }
+
+    /* ── Slide 2: 기능 소개 ── */
+    .slide-features {
+      background: #f5f4f0;
+      color: #1a1a1a;
+      flex-direction: column;
+      padding: 100px 140px;
+    }
+
+    .slide-features .s2-label {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #6c8eff;
+      margin-bottom: 24px;
+    }
+
+    .slide-features .s2-headline {
+      font-size: 64px;
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      color: #0f1117;
+      margin-bottom: 72px;
+      max-width: 900px;
+    }
+
+    .slide-features .s2-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 48px;
+    }
+
+    .slide-features .s2-card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 48px 44px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      border: 1px solid #e8e6e0;
+    }
+
+    .slide-features .s2-card-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
+      background: #eef1ff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .slide-features .s2-card-icon svg {
+      width: 26px;
+      height: 26px;
+      stroke: #6c8eff;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .slide-features .s2-card-title {
+      font-size: 30px;
+      font-weight: 700;
+      color: #0f1117;
+      line-height: 1.2;
+    }
+
+    .slide-features .s2-card-body {
+      font-size: 22px;
+      color: #555;
+      line-height: 1.55;
+    }
+
+    /* ── Slide 3: CTA ── */
+    .slide-cta {
+      background: #6c8eff;
+      color: #ffffff;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .slide-cta::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 1400px 900px at 50% 110%, rgba(255,255,255,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .slide-cta .s3-label {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 28px;
+    }
+
+    .slide-cta .s3-headline {
+      font-size: 88px;
+      font-weight: 700;
+      line-height: 1.06;
+      letter-spacing: -0.025em;
+      text-align: center;
+      max-width: 1360px;
+      color: #ffffff;
+      margin-bottom: 48px;
+    }
+
+    .slide-cta .s3-sub {
+      font-size: 30px;
+      font-weight: 400;
+      color: rgba(255,255,255,0.82);
+      text-align: center;
+      max-width: 860px;
+      line-height: 1.5;
+      margin-bottom: 72px;
+    }
+
+    .slide-cta .s3-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      background: #ffffff;
+      color: #2c4fde;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      padding: 22px 56px;
+      border-radius: 60px;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    }
+
+    .slide-cta .s3-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 40px rgba(0,0,0,0.24);
+    }
+  </style>
+</head>
+<body>
+
+  <deck-stage id="main-deck">
+    <!-- Slide 1: 타이틀 -->
+    <section class="slide-title">
+      <p class="s1-eyebrow">OpenClaw Cloud</p>
+      <h1 class="s1-headline">더 스마트한<br>클라우드 경험</h1>
+      <p class="s1-sub">AI 기반 자동화로 개발팀의 생산성을 10배 높이는<br>차세대 클라우드 플랫폼</p>
+      <div class="s1-divider"></div>
+    </section>
+
+    <!-- Slide 2: 핵심 기능 -->
+    <section class="slide-features">
+      <p class="s2-label">핵심 기능</p>
+      <h2 class="s2-headline">팀이 실제로 필요한<br>세 가지 핵심 도구</h2>
+      <div class="s2-grid">
+        <div class="s2-card">
+          <div class="s2-card-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          </div>
+          <p class="s2-card-title">자동 배포</p>
+          <p class="s2-card-body">코드 푸시만으로 스테이징과 프로덕션에 자동 배포. 수동 작업 없이 안전하게.</p>
+        </div>
+        <div class="s2-card">
+          <div class="s2-card-icon">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          </div>
+          <p class="s2-card-title">실시간 모니터링</p>
+          <p class="s2-card-body">서비스 상태, 에러율, 응답시간을 대시보드 하나에서 실시간으로 확인.</p>
+        </div>
+        <div class="s2-card">
+          <div class="s2-card-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <p class="s2-card-title">보안 자동화</p>
+          <p class="s2-card-body">취약점 스캔, 비밀 탐지, 컴플라이언스 체크를 CI 파이프라인에 내장.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 3: CTA -->
+    <section class="slide-cta">
+      <p class="s3-label">지금 시작하세요</p>
+      <h2 class="s3-headline">팀의 다음 단계,<br>OpenClaw와 함께</h2>
+      <p class="s3-sub">14일 무료 체험 — 신용카드 불필요.<br>5분 안에 첫 번째 배포를 완료하세요.</p>
+      <button class="s3-btn">무료로 시작하기</button>
+    </section>
+  </deck-stage>
+
+  <!-- slide counter overlay (outside scaled canvas) -->
+  <div class="ds-counter" id="ds-counter">1 / 3</div>
+
+  <!--
+    Step A (Pitfall 1 방지): connectedCallback 타이밍 문제 해결.
+    <deck-stage> 닫는 태그 이후, babel 스크립트 전에 동기 init 실행.
+    이 시점에 parser가 모든 <section>을 DOM에 넣은 상태.
+  -->
+  <script>
+    // ── deck-stage Custom Element ──────────────────────────────────────────────
+
+    class DeckStage extends HTMLElement {
+      constructor() {
+        super();
+        this._currentIndex = 0;
+        this._sections = [];
+        this._canvas = null;
+        this._boundKeydown = this._onKeydown.bind(this);
+        this._boundResize = this._onResize.bind(this);
+        this._ro = null;
+      }
+
+      connectedCallback() {
+        // intentionally deferred: _initWithChildren() called from post-parse script
+      }
+
+      _initWithChildren() {
+        // 1. Wrap sections in .ds-canvas
+        this._canvas = document.createElement('div');
+        this._canvas.className = 'ds-canvas';
+
+        // Move direct child sections into canvas
+        const rawSections = Array.from(this.children);
+        rawSections.forEach(el => {
+          if (el.tagName === 'SECTION') {
+            this._canvas.appendChild(el);
+          }
+        });
+        this.appendChild(this._canvas);
+
+        // 2. Collect sections and apply data-screen-label
+        this._sections = Array.from(this._canvas.querySelectorAll('section'));
+        this._sections.forEach((sec, i) => {
+          const num = String(i + 1).padStart(2, '0');
+          const titles = ['Title', 'Features', 'CTA'];
+          sec.setAttribute('data-screen-label', `${num} ${titles[i] || 'Slide'}`);
+          sec.setAttribute('data-om-validate', 'true');
+        });
+
+        // 3. Restore from localStorage
+        const saved = parseInt(localStorage.getItem('deck-index') || '0', 10);
+        const startIdx = (saved >= 0 && saved < this._sections.length) ? saved : 0;
+
+        this._currentIndex = startIdx;
+        this._activate(startIdx, false);
+
+        // 4. Scale
+        this._applyScale();
+
+        // 5. Listeners
+        document.addEventListener('keydown', this._boundKeydown);
+        this._ro = new ResizeObserver(() => this._applyScale());
+        this._ro.observe(document.body);
+
+        // 6. Touch support
+        let touchStartX = 0;
+        this.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+        this.addEventListener('touchend', e => {
+          const dx = e.changedTouches[0].clientX - touchStartX;
+          if (Math.abs(dx) > 50) dx < 0 ? this.next() : this.prev();
+        }, { passive: true });
+
+        // 7. Expose window.__deck API
+        // window.__deck tier-1 API (deck-authoring.md §PPTX Export Contract)
+        // goToSlide(n): 1-indexed (n=1 means first slide). no-op if out of range.
+        window.__deck = {
+          getSlideCount: () => this._sections.length,
+          goToSlide: (n) => {
+            const idx = typeof n === 'number' ? Math.round(n) : parseInt(n, 10);
+            if (idx >= 1 && idx <= this._sections.length) {
+              this._activate(idx - 1);
+            }
+          },
+          getCurrentSlide: () => this._currentIndex + 1,
+        };
+      }
+
+      _activate(idx, persist = true) {
+        this._sections.forEach((sec, i) => {
+          sec.setAttribute('data-active', i === idx ? 'true' : 'false');
+        });
+        this._currentIndex = idx;
+
+        // Update counter
+        const counter = document.getElementById('ds-counter');
+        if (counter) counter.textContent = `${idx + 1} / ${this._sections.length}`;
+
+        // Persist
+        if (persist) localStorage.setItem('deck-index', idx);
+
+        // postMessage to parent
+        try {
+          window.parent.postMessage({ slideIndexChanged: idx }, '*');
+        } catch (_) {}
+      }
+
+      _applyScale() {
+        if (this.hasAttribute('noscale')) {
+          if (this._canvas) this._canvas.style.transform = '';
+          return;
+        }
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const scale = Math.min(vw / 1920, vh / 1080);
+        if (this._canvas) {
+          this._canvas.style.transform = `scale(${scale})`;
+        }
+      }
+
+      next() {
+        if (this._currentIndex < this._sections.length - 1) {
+          this._activate(this._currentIndex + 1);
+        }
+      }
+
+      prev() {
+        if (this._currentIndex > 0) {
+          this._activate(this._currentIndex - 1);
+        }
+      }
+
+      _onKeydown(e) {
+        if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); this.next(); }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); this.prev(); }
+      }
+
+      _onResize() {
+        this._applyScale();
+      }
+
+      disconnectedCallback() {
+        document.removeEventListener('keydown', this._boundKeydown);
+        if (this._ro) this._ro.disconnect();
+      }
+
+      // noscale attribute observer
+      static get observedAttributes() { return ['noscale']; }
+      attributeChangedCallback() { this._applyScale(); }
+    }
+
+    // Register AFTER the closing </deck-stage> tag so connectedCallback
+    // fires with children already in DOM. Then manually call _initWithChildren.
+    customElements.define('deck-stage', DeckStage);
+
+    // Synchronous init — parser has already added all <section> elements
+    document.querySelectorAll('deck-stage').forEach(stage => stage._initWithChildren());
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,218 @@
+# Hooks Registry
+# Single source of truth for hooks configuration and scripts
+# To add a hook: Add config entry (HCF-XXX) and script entry (HSC-XXX) if new script
+
+version: "1.0"
+type: "hooks"
+last_updated: "2026-01-25"
+
+# === Hook Configuration (settings.json entries) ===
+configs:
+  - id: "HCF-001"
+    name: "sensitive-file-guard"
+    event: "PreToolUse"
+    matcher: "Edit|Write|MultiEdit"
+    scriptPath: ".claude/hooks/sensitive-file-guard.sh"
+    priority: "CRITICAL"
+    description: "Prevent modification of sensitive files"
+    validation:
+      type: "config_exists"
+
+  - id: "HCF-002"
+    name: "plan-worktree-hook"
+    event: "PostToolUse"
+    matcher: "Write"
+    scriptPath: ".claude/hooks/plan-worktree-hook.sh"
+    priority: "HIGH"
+    description: "Track plan file changes in worktrees"
+    validation:
+      type: "config_exists"
+
+  - id: "HCF-003"
+    name: "quality-check"
+    event: "PostToolUse"
+    matcher: "Edit|Write|MultiEdit"
+    scriptPath: ".claude/hooks/quality-check.sh"
+    priority: "HIGH"
+    description: "Run code quality checks after file changes"
+    validation:
+      type: "config_exists"
+
+  - id: "HCF-004"
+    name: "decision-context"
+    event: "UserPromptSubmit"
+    matcher: ""
+    scriptPath: ".claude/hooks/decision-context.sh"
+    priority: "MEDIUM"
+    description: "Inject decision context into prompts"
+    validation:
+      type: "config_exists"
+
+  - id: "HCF-005"
+    name: "subagent-monitor"
+    event: "SubagentStop"
+    matcher: ""
+    scriptPath: ".claude/hooks/subagent-monitor.sh"
+    priority: "MEDIUM"
+    description: "Monitor subagent completion events"
+    validation:
+      type: "config_exists"
+
+  - id: "HCF-006"
+    name: "precompact-save-state"
+    event: "PreCompact"
+    matcher: ""
+    scriptPath: ".claude/hooks/precompact-save-state.sh"
+    priority: "HIGH"
+    description: "Save workflow state before context compression"
+    validation:
+      type: "config_exists"
+
+  - id: "HCF-007"
+    name: "session-start-restore-hint"
+    event: "SessionStart"
+    matcher: ""
+    scriptPath: ".claude/hooks/session-start-restore-hint.sh"
+    priority: "MEDIUM"
+    description: "Show restore hint on session start"
+    validation:
+      type: "config_exists"
+
+# === Hook Scripts (actual script files) ===
+scripts:
+  - id: "HSC-001"
+    name: "sensitive-file-guard.sh"
+    path: ".claude/hooks/sensitive-file-guard.sh"
+    usedBy: ["HCF-001"]
+    priority: "CRITICAL"
+    description: "Guards against sensitive file modifications"
+    validation:
+      type: "exists"
+      executable: true
+
+  - id: "HSC-002"
+    name: "plan-worktree-hook.sh"
+    path: ".claude/hooks/plan-worktree-hook.sh"
+    usedBy: ["HCF-002"]
+    priority: "HIGH"
+    description: "Handles plan files in worktree context"
+    validation:
+      type: "exists"
+      executable: true
+
+  - id: "HSC-003"
+    name: "quality-check.sh"
+    path: ".claude/hooks/quality-check.sh"
+    usedBy: ["HCF-003"]
+    priority: "HIGH"
+    description: "Runs linting and type checks"
+    validation:
+      type: "exists"
+      executable: true
+
+  - id: "HSC-004"
+    name: "decision-context.sh"
+    path: ".claude/hooks/decision-context.sh"
+    usedBy: ["HCF-004"]
+    priority: "MEDIUM"
+    description: "Provides decision context to prompts"
+    validation:
+      type: "exists"
+      executable: true
+
+  - id: "HSC-005"
+    name: "subagent-monitor.sh"
+    path: ".claude/hooks/subagent-monitor.sh"
+    usedBy: ["HCF-005"]
+    priority: "MEDIUM"
+    description: "Monitors subagent lifecycle"
+    validation:
+      type: "exists"
+      executable: true
+
+  - id: "HSC-006"
+    name: "precompact-save-state.sh"
+    path: ".claude/hooks/precompact-save-state.sh"
+    usedBy: ["HCF-006"]
+    priority: "HIGH"
+    description: "Saves checkpoint before compression"
+    validation:
+      type: "exists"
+      executable: true
+
+  - id: "HSC-007"
+    name: "session-start-restore-hint.sh"
+    path: ".claude/hooks/session-start-restore-hint.sh"
+    usedBy: ["HCF-007"]
+    priority: "MEDIUM"
+    description: "Shows restore options at session start"
+    validation:
+      type: "exists"
+      executable: true
+
+  - id: "HSC-008"
+    name: "hook-utils.sh"
+    path: ".claude/hooks/hook-utils.sh"
+    usedBy: ["HSC-001", "HSC-002", "HSC-003", "HSC-004", "HSC-005", "HSC-006", "HSC-007"]
+    priority: "CRITICAL"
+    description: "Shared utility functions for all hooks"
+    validation:
+      type: "exists"
+      executable: false
+
+# === Hook Config Files (.cjs) ===
+# These are Node.js configuration files used by quality-check.sh
+# connectionType: "indirect" - settings.json에서 직접 참조되지 않고 HSC-003를 통해 간접 연결
+config_files:
+  - id: "HCF-CONFIG-001"
+    name: "eslint.cjs"
+    path: ".claude/hooks/eslint.cjs"
+    usedBy: ["HSC-003"]
+    connectionType: "indirect"
+    dependencyChain: "HCF-003 → HSC-003 → eslint.cjs"
+    priority: "HIGH"
+    description: "ESLint 품질 검사 설정 (간접 연결)"
+    validation:
+      type: "exists"
+      executable: false
+
+  - id: "HCF-CONFIG-002"
+    name: "prettier.cjs"
+    path: ".claude/hooks/prettier.cjs"
+    usedBy: ["HSC-003"]
+    connectionType: "indirect"
+    dependencyChain: "HCF-003 → HSC-003 → prettier.cjs"
+    priority: "HIGH"
+    description: "Prettier 코드 포맷팅 설정 (간접 연결)"
+    validation:
+      type: "exists"
+      executable: false
+
+  - id: "HCF-CONFIG-003"
+    name: "typecheck.cjs"
+    path: ".claude/hooks/typecheck.cjs"
+    usedBy: ["HSC-003"]
+    connectionType: "indirect"
+    dependencyChain: "HCF-003 → HSC-003 → typecheck.cjs"
+    priority: "HIGH"
+    description: "TypeScript 타입 검사 설정 (간접 연결)"
+    validation:
+      type: "exists"
+      executable: false
+
+  - id: "HCF-CONFIG-004"
+    name: "parallel-check.cjs"
+    path: ".claude/hooks/parallel-check.cjs"
+    usedBy: ["HSC-003"]
+    connectionType: "indirect"
+    dependencyChain: "HCF-003 → HSC-003 → parallel-check.cjs"
+    priority: "HIGH"
+    description: "병렬 품질 검사 오케스트레이션 (간접 연결)"
+    validation:
+      type: "exists"
+      executable: false
+
+# === Summary ===
+# Hook Configs: 7 (PreToolUse: 1, PostToolUse: 2, UserPromptSubmit: 1, SubagentStop: 1, PreCompact: 1, SessionStart: 1)
+# Hook Scripts: 8 (including hook-utils.sh shared library)
+# Config Files: 4 (eslint.cjs, prettier.cjs, typecheck.cjs, parallel-check.cjs)

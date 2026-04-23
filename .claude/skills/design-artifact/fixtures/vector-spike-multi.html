@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vector Spike Multi</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #111; }
+
+    /* deck-stage web component styles */
+    deck-stage {
+      display: block;
+      width: 1920px;
+      height: 1080px;
+      position: relative;
+      overflow: hidden;
+    }
+    deck-stage .ds-canvas {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    deck-stage .ds-canvas > section {
+      display: none;
+      width: 1920px;
+      height: 1080px;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    deck-stage .ds-canvas > section[data-active="true"] {
+      display: flex;
+    }
+
+    /* Slide 1: Dark hero */
+    section:nth-child(1) {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 120px 160px;
+    }
+    section:nth-child(1) h1 {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 80px;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.1;
+      margin-bottom: 32px;
+    }
+    section:nth-child(1) p {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 32px;
+      color: rgba(255,255,255,0.7);
+    }
+    section:nth-child(1) .accent {
+      color: #60a5fa;
+    }
+
+    /* Slide 2: Light with image */
+    section:nth-child(2) {
+      background: #f8fafc;
+      flex-direction: row;
+      align-items: center;
+      padding: 80px 120px;
+      gap: 80px;
+    }
+    section:nth-child(2) .text-col {
+      flex: 1;
+    }
+    section:nth-child(2) h2 {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 60px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 24px;
+    }
+    section:nth-child(2) p {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 28px;
+      color: #475569;
+      line-height: 1.6;
+    }
+    section:nth-child(2) .img-col {
+      flex: 0 0 640px;
+      height: 640px;
+      border-radius: 24px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #e2e8f0;
+    }
+    section:nth-child(2) .img-col img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Slide 3: Gradient with SVG */
+    section:nth-child(3) {
+      background: linear-gradient(180deg, #7c3aed 0%, #4f46e5 100%);
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 80px;
+      gap: 48px;
+    }
+    section:nth-child(3) h2 {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 64px;
+      font-weight: 800;
+      color: #ffffff;
+      text-align: center;
+    }
+    section:nth-child(3) .korean {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 36px;
+      color: rgba(255,255,255,0.8);
+      text-align: center;
+    }
+    section:nth-child(3) .icon-row {
+      display: flex;
+      gap: 40px;
+    }
+  </style>
+</head>
+<body>
+  <deck-stage id="main-deck">
+    <section data-active="true">
+      <h1>Vector Export<br/><span class="accent">Multi-Slide</span> Test</h1>
+      <p>Spike: dom-to-pptx b1/b2 strategy validation</p>
+    </section>
+
+    <section>
+      <div class="text-col">
+        <h2>Image Slide</h2>
+        <p>This slide includes an embedded<br/>data URL image to validate<br/>media handling in PPTX export.</p>
+      </div>
+      <div class="img-col">
+        <!-- data: URL image (1x1 pixel, red) scaled up -->
+        <img
+          src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFklEQVR42mP8/5+hngENYBxVSF+FABJhBnfcatPvAAAAAElFTkSuQmCC"
+          alt="Test image"
+          style="width:100%;height:100%;object-fit:cover;border-radius:24px;"
+        />
+      </div>
+    </section>
+
+    <section>
+      <h2>SVG + CJK Test</h2>
+      <p class="korean">다국어 텍스트: 안녕하세요 — 한국어 렌더링 검증</p>
+      <div class="icon-row">
+        <!-- Inline SVG -->
+        <svg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="40" cy="40" r="36" fill="rgba(255,255,255,0.25)" stroke="white" stroke-width="2"/>
+          <path d="M28 40 L40 28 L52 40 L40 52 Z" fill="white"/>
+        </svg>
+        <svg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+          <rect x="12" y="12" width="56" height="56" rx="12" fill="rgba(255,255,255,0.25)" stroke="white" stroke-width="2"/>
+          <text x="40" y="48" text-anchor="middle" font-family="Arial" font-size="28" font-weight="700" fill="white">ok</text>
+        </svg>
+        <svg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+          <polygon points="40,8 72,64 8,64" fill="rgba(255,255,255,0.25)" stroke="white" stroke-width="2"/>
+          <line x1="40" y1="32" x2="40" y2="48" stroke="white" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="40" cy="56" r="3" fill="white"/>
+        </svg>
+      </div>
+    </section>
+  </deck-stage>
+
+  <script id="speaker-notes" type="application/json">["Slide 1 speaker note: Introduction to the vector export spike probe.", "Slide 2 speaker note: Image handling — data URL embedded PNG.", "Slide 3 speaker note: CJK 텍스트와 SVG 벡터 렌더링 검증 슬라이드."]</script>
+
+  <script>
+    // deck-stage web component definition
+    class DeckStage extends HTMLElement {
+      constructor() {
+        super();
+        this.currentIndex = 0;
+        this.sections = [];
+      }
+
+      connectedCallback() {
+        // Defer to allow children to parse
+        setTimeout(() => this._init(), 0);
+      }
+
+      _init() {
+        const canvas = this.querySelector('.ds-canvas') || this;
+        this.sections = Array.from(
+          (canvas === this ? this : canvas).children
+        ).filter(el => el.tagName === 'SECTION');
+
+        // If no canvas wrapper, wrap sections
+        if (!this.querySelector('.ds-canvas')) {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'ds-canvas';
+          while (this.firstChild) wrapper.appendChild(this.firstChild);
+          this.appendChild(wrapper);
+          this.sections = Array.from(wrapper.children).filter(el => el.tagName === 'SECTION');
+        }
+
+        this.sections.forEach((sec, i) => {
+          if (i === 0) sec.setAttribute('data-active', 'true');
+          else sec.removeAttribute('data-active');
+        });
+
+        // Expose window.__deck Tier 1 API
+        window.__deck = {
+          getSlideCount: () => this.sections.length,
+          getCurrentSlide: () => this.currentIndex,
+          goToSlide: (idx) => {
+            this.sections.forEach(s => s.removeAttribute('data-active'));
+            this.currentIndex = Math.max(0, Math.min(idx, this.sections.length - 1));
+            this.sections[this.currentIndex].setAttribute('data-active', 'true');
+          },
+          freezeForExport: () => {
+            // No animations to freeze in this fixture
+            return Promise.resolve();
+          }
+        };
+      }
+    }
+
+    customElements.define('deck-stage', DeckStage);
+  </script>
+</body>
+</html>

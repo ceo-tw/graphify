@@ -1,0 +1,259 @@
+# Skills Registry
+# Single source of truth for core skills verification
+# To add a skill: Add new item with unique ID (SKL-XXX)
+
+version: "1.0"
+type: "skills"
+last_updated: "2026-01-25"
+
+items:
+  # === CRITICAL Priority ===
+  - id: "SKL-001"
+    name: "wm"
+    path: ".claude/skills/wm/SKILL.md"
+    priority: "CRITICAL"
+    tags: ["orchestration", "planning", "analysis", "report"]
+    triggerKeywords: ["plan", "scope", "breakdown", "strategy", "phases", "analyze", "investigate", "분석", "조사", "report", "status", "보고", "현황", "cleanup", "archive", "정리"]
+    dependencies: []
+    description: "통합 워크플로우 매니저 - 요청 분류 (9 types), Explore 타입 시스템, 계획 생성"
+    validation:
+      type: "exists"
+
+  - id: "SKL-002"
+    name: "solve"
+    path: ".claude/skills/solve/SKILL.md"
+    priority: "CRITICAL"
+    tags: ["problem-solving", "debugging"]
+    triggerKeywords: ["bug", "debug", "fix", "investigate", "root cause"]
+    dependencies: []
+    description: "Systematic problem-solving via 6-step methodology"
+    validation:
+      type: "exists"
+
+  # === HIGH Priority ===
+  - id: "SKL-003"
+    name: "research"
+    path: ".claude/skills/research/SKILL.md"
+    priority: "HIGH"
+    tags: ["research", "web"]
+    triggerKeywords: ["research", "find out", "learn about", "investigate"]
+    dependencies: ["WebSearch"]
+    description: "Deep research with 5-10 web searches, key summary output"
+    validation:
+      type: "exists"
+
+  - id: "SKL-004"
+    name: "codebase-explorer"
+    path: ".claude/skills/codebase-explorer/SKILL.md"
+    priority: "HIGH"
+    tags: ["navigation", "lsp"]
+    triggerKeywords: ["find symbol", "definition", "references", "calls"]
+    dependencies: ["serena MCP"]
+    description: "LSP-based codebase navigation"
+    validation:
+      type: "exists"
+
+  - id: "SKL-005"
+    name: "code-quality"
+    path: ".claude/skills/code-quality/SKILL.md"
+    priority: "HIGH"
+    tags: ["quality", "refactoring"]
+    triggerKeywords: ["refactor", "clean up", "code smell", "review"]
+    dependencies: []
+    description: "Code smell detection, refactoring guidance, architecture review"
+    validation:
+      type: "exists"
+
+  - id: "SKL-006"
+    name: "e2e-test"
+    path: ".claude/skills/e2e-test/SKILL.md"
+    priority: "HIGH"
+    tags: ["testing", "playwright"]
+    triggerKeywords: ["e2e", "end-to-end", "playwright", "browser test"]
+    dependencies: ["playwright MCP"]
+    description: "Playwright E2E test orchestration (plan, generate, heal, run)"
+    validation:
+      type: "exists"
+
+  # === MEDIUM Priority ===
+  - id: "SKL-007"
+    name: "worktree-manager"
+    path: ".claude/skills/worktree-manager/SKILL.md"
+    priority: "MEDIUM"
+    tags: ["git", "parallel-dev"]
+    triggerKeywords: ["worktree", "parallel", "branch"]
+    dependencies: ["git"]
+    description: "Git worktree management for parallel development"
+    validation:
+      type: "exists"
+
+  - id: "SKL-008"
+    name: "restore-context"
+    path: ".claude/skills/restore-context/SKILL.md"
+    priority: "MEDIUM"
+    tags: ["context", "recovery"]
+    triggerKeywords: ["restore", "resume", "continue", "checkpoint"]
+    dependencies: []
+    description: "Recover workflow state after context compression"
+    validation:
+      type: "exists"
+
+  - id: "SKL-009"
+    name: "skill-creator"
+    path: ".claude/skills/skill-creator/SKILL.md"
+    priority: "MEDIUM"
+    tags: ["meta", "creation"]
+    triggerKeywords: ["create skill", "new skill", "extend capabilities"]
+    dependencies: []
+    description: "Guide for creating new skills"
+    validation:
+      type: "exists"
+
+  - id: "SKL-010"
+    name: "dev-status"
+    path: ".claude/skills/dev-status/SKILL.md"
+    priority: "MEDIUM"
+    tags: ["tracking", "progress"]
+    triggerKeywords: ["status", "progress", "what stage", "current phase"]
+    dependencies: []
+    description: "Development workflow progress tracking"
+    validation:
+      type: "exists"
+
+  - id: "SKL-011"
+    name: "plan-cleanup"
+    path: ".claude/skills/plan-cleanup/SKILL.md"
+    priority: "MEDIUM"
+    tags: ["cleanup", "planning"]
+    triggerKeywords: ["cleanup", "archive", "move plan", "complete plan"]
+    dependencies: []
+    description: "Plan file cleanup and archival after completion"
+    validation:
+      type: "exists"
+
+  # === SUBAGENT Support Skills ===
+  - id: "SKL-012"
+    name: "clarification-protocol"
+    path: ".claude/skills/clarification-protocol/SKILL.md"
+    priority: "HIGH"
+    tags: ["subagent", "protocol"]
+    triggerKeywords: []
+    dependencies: []
+    description: "Subagent clarification protocol - return flags instead of AskUserQuestion"
+    autoLoadedBy: ["subagents"]
+    validation:
+      type: "exists"
+
+  # NOTE: SKL-013 (permission-denial) and SKL-014 (agent-resume) removed
+  # These features are now native in Claude Code 2.1.0+
+
+  # === Self-reference & Review Skills ===
+  - id: "SKL-015"
+    name: "wm-setup"
+    path: ".claude/skills/wm-setup/SKILL.md"
+    priority: "CRITICAL"
+    tags: ["onboarding", "setup", "dependencies"]
+    triggerKeywords: ["setup", "wm-setup", "onboarding", "install graphify", "setup environment"]
+    dependencies: []
+    description: "Unified Claude Code + wm workflow setup skill. Validates and installs all wm dependencies (graphify, graphs, binaries, env-vars)."
+    validation:
+      type: "exists"
+
+  - id: "SKL-016"
+    name: "codex-review"
+    path: ".claude/skills/codex-review/SKILL.md"
+    priority: "MEDIUM"
+    tags: ["review", "quality"]
+    triggerKeywords: ["codex", "review", "quality check"]
+    dependencies: []
+    description: "OpenAI Codex CLI review skill"
+    validation:
+      type: "exists"
+
+  # === Rules-only Skills (no SKILL.md, validation optional) ===
+  - id: "SKL-017"
+    name: "best-practices"
+    path: ".claude/skills/best-practices/rules"
+    priority: "LOW"
+    tags: ["rules", "guidelines"]
+    triggerKeywords: []
+    dependencies: []
+    description: "Code best practices rules (rules-only, no SKILL.md)"
+    validation:
+      type: "dir_exists"
+
+  # NOTE: SKL-018 (plan-prompts) removed - integrated into wm/rules/plan-prompts/
+
+  # === Frontend Design Skills ===
+  - id: "SKL-019"
+    name: "frontend-design-analyzer"
+    path: ".claude/skills/frontend-design-analyzer/SKILL.md"
+    priority: "HIGH"
+    tags: ["frontend", "design", "analysis"]
+    triggerKeywords: ["design system", "analyze design", "design tokens", "extract tokens"]
+    dependencies: []
+    description: "Auto-analyze project design system (tokens, components, dependencies)"
+    validation:
+      type: "exists"
+
+  - id: "SKL-020"
+    name: "frontend-app-ui"
+    path: ".claude/skills/frontend-app-ui/SKILL.md"
+    priority: "HIGH"
+    tags: ["frontend", "design", "app-ui"]
+    triggerKeywords: ["app UI", "portal page", "admin page", "dashboard page", "list page", "detail page", "form page"]
+    dependencies: []
+    description: "App UI implementation guide with Tailwind patterns and token mapping"
+    validation:
+      type: "exists"
+
+  - id: "SKL-021"
+    name: "homepage-architecture"
+    path: ".claude/skills/homepage-architecture/SKILL.md"
+    priority: "HIGH"
+    tags: ["frontend", "design", "homepage", "landing"]
+    triggerKeywords: ["landing page", "homepage", "hero section", "marketing page", "website design"]
+    dependencies: []
+    description: "Landing page structure, hero patterns, section sequencing with Tailwind code"
+    validation:
+      type: "exists"
+
+  - id: "SKL-022"
+    name: "homepage-visual-craft"
+    path: ".claude/skills/homepage-visual-craft/SKILL.md"
+    priority: "MEDIUM"
+    tags: ["frontend", "design", "visual", "typography", "color"]
+    triggerKeywords: ["font pairing", "color palette", "typography", "visual design", "imagery", "AI slop"]
+    dependencies: []
+    description: "Visual design guide: typography, color, imagery, backgrounds"
+    validation:
+      type: "exists"
+
+  - id: "SKL-023"
+    name: "frontend-motion"
+    path: ".claude/skills/frontend-motion/SKILL.md"
+    priority: "MEDIUM"
+    tags: ["frontend", "animation", "motion"]
+    triggerKeywords: ["animation", "motion", "transition", "framer motion", "entrance animation", "scroll animation"]
+    dependencies: []
+    description: "Animation and motion design guide (MotionPreset, Framer Motion, CSS)"
+    validation:
+      type: "exists"
+
+  - id: "SKL-024"
+    name: "frontend-design-system"
+    path: ".claude/skills/frontend-design-system/SKILL.md"
+    priority: "LOW"
+    tags: ["frontend", "design", "tokens", "reference"]
+    triggerKeywords: []
+    dependencies: []
+    description: "Design system reference library (tokens, component catalog)"
+    validation:
+      type: "exists"
+
+# === Summary ===
+# CRITICAL: 3 (wm, solve, wm-setup)
+# HIGH: 8 (research, codebase-explorer, code-quality, e2e-test, clarification-protocol, frontend-design-analyzer, frontend-app-ui, homepage-architecture)
+# MEDIUM: 8 (worktree-manager, restore-context, skill-creator, dev-status, plan-cleanup, codex-review, homepage-visual-craft, frontend-motion)
+# LOW: 2 (best-practices, frontend-design-system)
+# Total: 21 skills

@@ -1,0 +1,51 @@
+{
+  "skill_name": "solve",
+  "description": "solve 스킬 분기별 테스트 케이스. Decision Gate 선택, 에이전트 위임, 문서화를 검증합니다.",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/solve 로그인 버튼 클릭 시 콘솔에 'Cannot read property of undefined' 에러 발생",
+      "expected_output": "Phase 1(정의) -> Phase 2(수집) -> Phase 2.5(Decision Gate) -> 사용자에게 5가지 접근 방식 제시",
+      "expected_phase_flow": "1 -> 2 -> 2.5 -> user_decision",
+      "expected_decision_gate": true,
+      "expected_options_count": 5,
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "/solve API에서 500 에러 반환 --5whys",
+      "expected_output": "5 Whys 분석 강조. Phase 3에서 root-cause-finder 에이전트 호출 시 5 Whys 상세 출력",
+      "expected_phase_flow": "1 -> 2 -> 2.5 -> 3(5whys) -> 4 -> 5 -> 6",
+      "expected_option": "--5whys",
+      "expected_agent": "root-cause-finder",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "/solve 간헐적 테스트 실패 --hypothesis",
+      "expected_output": "가설 기반 검증 강조. Phase 4에서 가설 목록 생성 및 검증 실험 수행",
+      "expected_phase_flow": "1 -> 2 -> 2.5 -> 3 -> 4(hypothesis) -> 5 -> 6",
+      "expected_option": "--hypothesis",
+      "expected_hypothesis_table": true,
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "/solve 단순 타이포 버그 - 버튼 텍스트가 '로그이'으로 표시됨",
+      "expected_output": "Decision Gate에서 Quick Fix 권장. bug-fixer 에이전트 호출 후 Phase 6 문서화",
+      "expected_recommendation": "quick_fix",
+      "expected_agent": "bug-fixer",
+      "expected_phase_flow": "1 -> 2 -> 2.5 -> quick_fix -> 6",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "/solve 프로덕션 결제 데이터 불일치 - 사용자 결제 금액과 DB 기록이 다름",
+      "expected_output": "Decision Gate에서 Full Pipeline 권장 (프로덕션+데이터 무결성). root-cause-finder -> bug-fixer -> qa -> knowledge-keeper",
+      "expected_recommendation": "full_pipeline",
+      "expected_agents": ["root-cause-finder", "bug-fixer", "qa", "knowledge-keeper"],
+      "expected_phase_flow": "1 -> 2 -> 2.5 -> 3 -> 4 -> 5 -> qa -> 6",
+      "files": []
+    }
+  ]
+}

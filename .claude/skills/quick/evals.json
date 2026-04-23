@@ -1,0 +1,46 @@
+{
+  "skill_name": "quick",
+  "description": "quick 스킬 테스트 케이스. Quick Mode 진입 조건, 거부 조건, 실행 흐름을 검증합니다.",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/quick AGENTS.md에서 오타 수정해줘. '에이젠트'를 '에이전트'로",
+      "expected_output": "Quick Mode 진입. 단일 파일 + 명확한 의도 + 낮은 복잡도. Edit으로 즉시 수정.",
+      "expected_mode": "quick",
+      "expected_action": "edit",
+      "files": ["AGENTS.md"]
+    },
+    {
+      "id": 2,
+      "prompt": "/quick package.json에서 버전을 2.0.0으로 변경",
+      "expected_output": "Quick Mode 진입. 단일 파일 설정 변경. Edit으로 version 필드 수정.",
+      "expected_mode": "quick",
+      "expected_action": "edit",
+      "files": ["package.json"]
+    },
+    {
+      "id": 3,
+      "prompt": "/quick 로그인 기능을 추가해줘",
+      "expected_output": "Quick Mode 거부. 새 기능 개발은 복잡 작업이므로 /wm 사용 안내.",
+      "expected_mode": "reject",
+      "expected_redirect": "wm",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "/quick auth.ts와 user.ts 두 파일 수정해줘",
+      "expected_output": "Quick Mode 거부. 다중 파일 수정은 Quick Mode 조건 불충족. /wm 안내.",
+      "expected_mode": "reject",
+      "expected_redirect": "wm",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "/quick .env.example에 DATABASE_URL 환경변수 추가",
+      "expected_output": "Quick Mode 진입. 단일 파일 + 설정 추가. Edit으로 즉시 추가.",
+      "expected_mode": "quick",
+      "expected_action": "edit",
+      "files": [".env.example"]
+    }
+  ]
+}

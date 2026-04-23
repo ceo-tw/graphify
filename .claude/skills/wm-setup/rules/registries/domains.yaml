@@ -1,0 +1,127 @@
+# Domains Registry
+# Single source of truth for project domain definitions
+# To add a domain: Add new item with unique ID (DOM-XXX)
+
+version: "1.0"
+type: "domains"
+last_updated: "2026-01-28"
+
+items:
+  # === Frontend Domain ===
+  - id: "DOM-001"
+    name: "frontend"
+    directory: "dashboard"
+    agentsFile: "dashboard/AGENTS.md"
+    guideFile: ".claude/skills/wm/rules/policies/guide-frontend.md"
+    type: "frontend"
+    techStack: ["Next.js", "React", "TypeScript", "NextAuth.js", "TailwindCSS"]
+    keywords: ["dashboard", "ui", "components", "frontend", "next.js", "react", "웹", "UI"]
+    priority: "HIGH"
+    description: "Next.js 15 + React 19 dashboard for monitoring visualization"
+    validation:
+      type: "exists"
+
+  # === Backend Domain ===
+  - id: "DOM-002"
+    name: "backend"
+    directory: "collector"
+    agentsFile: "collector/AGENTS.md"
+    guideFile: null
+    type: "backend"
+    techStack: ["Node.js", "TypeScript", "HTTP Server"]
+    keywords: ["collector", "api", "backend", "jsonl", "fluent-bit", "수집기"]
+    priority: "HIGH"
+    description: "JSONL Collector - Fluent Bit JSONL ingestion and ClickHouse insertion"
+    validation:
+      type: "exists"
+
+  # === Database Domain ===
+  - id: "DOM-003"
+    name: "database"
+    directory: "docker"
+    agentsFile: "docker/AGENTS.md"
+    guideFile: null
+    type: "database"
+    techStack: ["ClickHouse", "OTel Collector", "Docker"]
+    keywords: ["database", "clickhouse", "docker", "infrastructure", "otel", "데이터베이스"]
+    priority: "CRITICAL"
+    description: "ClickHouse database and OTel Collector infrastructure"
+    validation:
+      type: "exists"
+
+  # === Client Domain ===
+  - id: "DOM-004"
+    name: "client"
+    directory: "client"
+    agentsFile: "client/AGENTS.md"
+    guideFile: null
+    type: "client"
+    techStack: ["Shell Script", "Fluent Bit", "BATS"]
+    keywords: ["client", "shell", "script", "mac", "bootstrap", "클라이언트"]
+    priority: "MEDIUM"
+    description: "Mac bootstrap scripts and Fluent Bit client setup"
+    validation:
+      type: "exists"
+
+  # === Deploy Domain ===
+  - id: "DOM-005"
+    name: "deploy"
+    directory: "deploy"
+    agentsFile: "deploy/AGENTS.md"
+    guideFile: null
+    type: "deploy"
+    techStack: ["Kubernetes", "Helm", "GitOps"]
+    keywords: ["deploy", "kubernetes", "k8s", "production", "배포"]
+    priority: "HIGH"
+    description: "Kubernetes cluster deployment and GitOps operations"
+    validation:
+      type: "exists"
+
+  # === Tray App Domain ===
+  - id: "DOM-006"
+    name: "tray-app"
+    directory: "tray-app"
+    agentsFile: "tray-app/AGENTS.md"
+    guideFile: null
+    type: "tray-app"
+    techStack: ["Swift", "SwiftUI", "macOS"]
+    keywords: ["tray", "macos", "menu-bar", "status", "트레이"]
+    priority: "MEDIUM"
+    description: "macOS menu bar app for pipeline status monitoring"
+    validation:
+      type: "exists"
+
+  # === Workflow Domain (Claude Code Configuration) ===
+  - id: "DOM-007"
+    name: "workflow"
+    directory: ".claude"
+    agentsFile: ".claude/AGENTS.md"
+    guideFile: null
+    type: "workflow"
+    techStack: ["Markdown", "YAML", "Agent Definition", "Skill Definition"]
+    keywords: ["workflow", "claude", "agents", "skills", "plans", "hooks", "에이전트", "스킬", "워크플로우"]
+    priority: "MEDIUM"
+    description: "Claude Code workflow configuration - agents, skills, plans, and hooks management"
+    validation:
+      type: "exists"
+
+  # === General Domain (Meta tasks) ===
+  - id: "DOM-008"
+    name: "general"
+    directory: null
+    agentsFile: "AGENTS.md"
+    guideFile: null
+    type: "meta"
+    techStack: []
+    keywords: ["ci", "cd", "github-actions", "documentation", "readme", "license", "meta", "문서화"]
+    priority: "LOW"
+    description: "Project-wide meta tasks (CI/CD, documentation, root configs)"
+    validation:
+      type: "none"
+
+# === Summary ===
+# CRITICAL: 1 (database)
+# HIGH: 3 (frontend, backend, deploy)
+# MEDIUM: 3 (client, tray-app, workflow)
+# LOW: 1 (general)
+# Total domains: 8

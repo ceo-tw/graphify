@@ -1,0 +1,40 @@
+{
+  "skill_name": "git-workflow",
+  "description": "git-workflow 스킬 테스트 케이스. create/complete/recommend 모드별 실행 흐름을 검증합니다.",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/git-workflow create feature user-auth",
+      "expected_output": "feature 타입 브랜치 생성. 프로젝트 Git Workflow 설정에 따라 브랜치 명명규칙 적용.",
+      "expected_mode": "create",
+      "expected_work_type": "feature",
+      "expected_plan_name": "user-auth",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "/git-workflow complete user-auth",
+      "expected_output": "브랜치 완료 처리. push -> merge/PR 생성 -> 브랜치 정리.",
+      "expected_mode": "complete",
+      "expected_plan_name": "user-auth",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "/git-workflow",
+      "expected_output": "recommend 모드. 현재 git 상태 분석 후 적절한 git 작업 추천. AskUserQuestion으로 선택지 제시.",
+      "expected_mode": "recommend",
+      "expected_user_question": true,
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "/git-workflow create fix login-bug",
+      "expected_output": "fix 타입 브랜치 생성. 버그 수정용 브랜치 명명규칙 적용.",
+      "expected_mode": "create",
+      "expected_work_type": "fix",
+      "expected_plan_name": "login-bug",
+      "files": []
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "skill_name": "wm",
+  "description": "wm 스킬 분기별 테스트 케이스. 타입 분류, 복잡도 결정, 실행 경로를 검증합니다.",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/wm 사용자 인증 기능을 추가해주세요. JWT 기반으로 로그인/로그아웃을 구현하고 미들웨어도 추가해야 합니다.",
+      "expected_output": "타입: NEW_DEVELOPMENT, 복잡도: Complex, 경로: Load Context -> design -> planner-task -> dev-executor(병렬) -> qa",
+      "expected_branch": "Complex -> Task-based (Path B)",
+      "expected_type": "NEW_DEVELOPMENT",
+      "expected_complexity": "Complex",
+      "expected_process_file": "rules/processes/development-process.md",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "/wm 로그인 페이지의 오타를 수정해주세요. '로그이'을 '로그인'으로 변경",
+      "expected_output": "타입: BUG_FIX(Simple), 복잡도: Simple, 경로: 직접 실행 (solve skill)",
+      "expected_branch": "Simple -> Direct execution",
+      "expected_type": "BUG_FIX_SIMPLE",
+      "expected_complexity": "Simple",
+      "expected_process_file": "rules/processes/bug-fix-simple.md",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "/wm 현재 API 응답 시간을 분석하고 병목 지점을 찾아주세요",
+      "expected_output": "타입: INQUIRY, 복잡도: Simple, 경로: 직접 실행 (Explore agent로 분석 -> 보고)",
+      "expected_branch": "Simple -> Direct execution",
+      "expected_type": "INQUIRY",
+      "expected_complexity": "Simple",
+      "expected_process_file": "rules/processes/inquiry.md",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "/wm 로그인 에러를 수정하고, 추가로 비밀번호 재설정 기능도 구현해주세요",
+      "expected_output": "타입: MULTI_INTENT, 복잡도: Complex, 경로: Load Context -> intent별 독립 파이프라인",
+      "expected_branch": "Complex -> Task-based with per-intent sections",
+      "expected_type": "MULTI_INTENT",
+      "expected_complexity": "Complex",
+      "expected_process_file": "rules/processes/multi-intent.md (composite)",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "/wm AGENTS.md 파일들의 상태 헤더를 일괄 업데이트해주세요. 총 5개 파일입니다.",
+      "expected_output": "타입: DOCUMENTATION_BATCH, 복잡도: Simple, 경로: 직접 실행 (Task tool + 병렬 Agent)",
+      "expected_branch": "Simple -> Task-based parallel edits",
+      "expected_type": "DOCUMENTATION_BATCH",
+      "expected_complexity": "Simple",
+      "expected_process_file": "rules/processes/documentation.md",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "/wm Playwright E2E 테스트에서 로그인 플로우가 실패합니다. 브라우저에서 확인하고 수정해주세요.",
+      "expected_output": "타입: BUG_FIX(E2E), 복잡도: Complex, 경로: Load Context -> E2E 전용 에이전트 체인",
+      "expected_branch": "Complex -> E2E-specific process",
+      "expected_type": "BUG_FIX_E2E",
+      "expected_complexity": "Complex",
+      "expected_process_file": "rules/processes/bug-fix-e2e.md",
+      "files": []
+    }
+  ],
+  "branch_matrix": {
+    "description": "분기 경로 매트릭스 - 각 테스트 케이스의 예상 실행 흐름",
+    "entries": [
+      {"eval_id": 1, "type": "NEW_DEVELOPMENT", "complexity": "Complex", "template_injection": "wm Step 4", "execution": "development-process.md"},
+      {"eval_id": 2, "type": "BUG_FIX_SIMPLE", "complexity": "Simple", "template_injection": "minimal Section 0", "execution": "bug-fix-simple.md"},
+      {"eval_id": 3, "type": "INQUIRY", "complexity": "Simple", "template_injection": "minimal Section 0", "execution": "inquiry.md"},
+      {"eval_id": 4, "type": "MULTI_INTENT", "complexity": "Complex", "template_injection": "wm Step 4 (composite)", "execution": "multi-intent.md"},
+      {"eval_id": 5, "type": "DOCUMENTATION_BATCH", "complexity": "Simple", "template_injection": "minimal Section 0", "execution": "documentation.md"},
+      {"eval_id": 6, "type": "BUG_FIX_E2E", "complexity": "Complex", "template_injection": "wm Step 4", "execution": "bug-fix-e2e.md"}
+    ]
+  }
+}

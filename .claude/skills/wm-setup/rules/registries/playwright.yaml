@@ -1,0 +1,53 @@
+# Playwright Browsers Registry
+# Single source of truth for Playwright browser installations
+# Required only when E2E tests are run (e2e-test skill, playwright-test-* agents)
+
+version: "1.0"
+type: "playwright"
+last_updated: "2026-04-21"
+
+items:
+  - id: PW-001
+    name: chromium
+    kind: browser
+    priority: HIGH
+    hard: false                 # E2E 테스트 필요시에만 hard; degraded mode 허용
+    referenced_by:
+      - .claude/agents/playwright-test-generator.md
+      - .claude/agents/playwright-test-healer.md
+      - .claude/skills/e2e-test/SKILL.md
+    install_command: "cd src/admin-portal && npx playwright install chromium"
+    verify_command: "cd src/admin-portal && npx playwright install --dry-run chromium | grep -qv 'install'"
+    validation:
+      type: custom
+
+  - id: PW-002
+    name: firefox
+    kind: browser
+    priority: HIGH
+    hard: false
+    referenced_by:
+      - .claude/agents/playwright-test-generator.md
+      - .claude/skills/e2e-test/SKILL.md
+    install_command: "cd src/admin-portal && npx playwright install firefox"
+    verify_command: "cd src/admin-portal && npx playwright install --dry-run firefox | grep -qv 'install'"
+    validation:
+      type: custom
+
+  - id: PW-003
+    name: webkit
+    kind: browser
+    priority: HIGH
+    hard: false
+    referenced_by:
+      - .claude/agents/playwright-test-generator.md
+      - .claude/skills/e2e-test/SKILL.md
+    install_command: "cd src/admin-portal && npx playwright install webkit"
+    verify_command: "cd src/admin-portal && npx playwright install --dry-run webkit | grep -qv 'install'"
+    validation:
+      type: custom
+
+# === Summary ===
+# HIGH (hard=false): 3 (chromium, firefox, webkit)
+# Total: 3 browsers
+# Install all at once: cd src/admin-portal && npx playwright install

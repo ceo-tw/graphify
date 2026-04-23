@@ -1,0 +1,49 @@
+{
+  "skill_name": "worktree-manager",
+  "description": "worktree-manager 스킬 테스트 케이스. create/complete/abort/status 명령별 실행 흐름을 검증합니다.",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/worktree-manager create evaluation-metrics",
+      "expected_output": "main에서 plan/evaluation-metrics 브랜치 생성. tree/evaluation-metrics/ 디렉토리에 worktree 생성.",
+      "expected_command": "create",
+      "expected_branch": "plan/evaluation-metrics",
+      "expected_script": ".claude/scripts/worktree-manager.sh create evaluation-metrics",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "/worktree-manager complete evaluation-metrics --yes",
+      "expected_output": "비대화형 완료. 미커밋 변경 자동 커밋 -> push -> squash merge -> worktree/branch 삭제 -> plan 파일 이동.",
+      "expected_command": "complete",
+      "expected_flags": ["--yes"],
+      "expected_script": ".claude/scripts/worktree-manager.sh complete evaluation-metrics --yes",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "/worktree-manager abort failed-plan",
+      "expected_output": "worktree 강제 제거 + 로컬 브랜치 삭제. plan 파일은 active/에 보존.",
+      "expected_command": "abort",
+      "expected_script": ".claude/scripts/worktree-manager.sh abort failed-plan",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "/worktree-manager status my-feature",
+      "expected_output": "JSON 형태로 worktree 상태 반환. plan_name, worktree_path, branch, uncommitted_changes, commits_ahead_of_main.",
+      "expected_command": "status",
+      "expected_output_format": "json",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "/worktree-manager create auth-feature --base feature/auth-refactor",
+      "expected_output": "--base 옵션으로 특정 브랜치에서 worktree 생성. feature/auth-refactor 기반.",
+      "expected_command": "create",
+      "expected_base_branch": "feature/auth-refactor",
+      "expected_script": ".claude/scripts/worktree-manager.sh create auth-feature --base feature/auth-refactor",
+      "files": []
+    }
+  ]
+}

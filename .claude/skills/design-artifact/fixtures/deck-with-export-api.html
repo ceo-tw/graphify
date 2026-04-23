@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>프로젝트 킥오프 — design-artifact fixture</title>
+
+  <!--
+    Fixture: deck-with-export-api.html
+    Purpose: design-verifier full-sweep PASS validation fixture (P6.final test input).
+    Verifies:
+      - <deck-stage> web component with 2 <section> children
+      - window.__deck API: getSlideCount(), goToSlide(n), getCurrentSlide()
+      - Speaker notes JSON (2 entries, length === slide count)
+      - noscale attribute disables transform scaling
+      - 1920×1080 canvas
+      - data-screen-label auto-assign ("01", "02" format)
+      - Korean content
+    Differs from sample-deck.html:
+      - 2 slides (vs 3)
+      - "프로젝트 킥오프" content theme (vs "팀 소개")
+  -->
+
+  <!-- Speaker Notes JSON (2 entries, 0-indexed matching slide order) -->
+  <script type="application/json" id="speaker-notes">
+[
+  "프로젝트 킥오프 슬라이드입니다. 이번 프로젝트의 목표와 기대 성과를 소개합니다. 팀 전체가 같은 방향을 바라볼 수 있도록 비전을 명확히 전달해 주세요.",
+  "실행 계획 슬라이드입니다. 마일스톤, 역할 분담, 주요 리스크를 공유합니다. 각 팀원이 자신의 역할과 기여 방식을 확인할 수 있도록 구체적으로 설명해 주세요."
+]
+  </script>
+
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: #0d0d0d;
+      overflow: hidden;
+      font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+    }
+
+    /* ── deck-stage outer shell ── */
+    deck-stage {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100vw;
+      height: 100vh;
+      background: #0d0d0d;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* ── canvas wrapper (1920×1080, scaled) ── */
+    deck-stage .ds-canvas {
+      width: 1920px;
+      height: 1080px;
+      position: relative;
+      transform-origin: center center;
+      overflow: hidden;
+    }
+
+    /* noscale: disable transform so layout is natural 1:1 */
+    deck-stage[noscale] .ds-canvas {
+      transform: none !important;
+    }
+
+    /* ── section visibility ── */
+    deck-stage .ds-canvas > section {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      display: none;
+      overflow: hidden;
+    }
+
+    deck-stage .ds-canvas > section[data-active="true"] {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── slide counter overlay ── */
+    .ds-counter {
+      position: fixed;
+      bottom: 24px;
+      right: 32px;
+      z-index: 100;
+      background: rgba(0, 0, 0, 0.55);
+      color: #fff;
+      font-size: 13px;
+      font-family: 'Pretendard', 'Apple SD Gothic Neo', sans-serif;
+      letter-spacing: 0.04em;
+      padding: 6px 14px;
+      border-radius: 20px;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    /* ── print: one slide per page ── */
+    @media print {
+      deck-stage {
+        display: block;
+        width: auto;
+        height: auto;
+        background: none;
+      }
+
+      deck-stage .ds-canvas {
+        transform: none !important;
+        width: 100%;
+        height: auto;
+      }
+
+      deck-stage .ds-canvas > section {
+        display: flex !important;
+        position: relative;
+        width: 100%;
+        height: auto;
+        page-break-after: always;
+        break-after: page;
+        min-height: 100vh;
+      }
+
+      .ds-counter {
+        display: none;
+      }
+    }
+
+    /* ── Slide 1: 킥오프 타이틀 ── */
+    .slide-kickoff {
+      background: linear-gradient(135deg, #0e1628 0%, #1a2540 100%);
+      color: #ffffff;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .slide-kickoff::before {
+      content: '';
+      position: absolute;
+      top: -200px;
+      right: -200px;
+      width: 800px;
+      height: 800px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(99, 179, 237, 0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .slide-kickoff .sk-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(99, 179, 237, 0.15);
+      border: 1px solid rgba(99, 179, 237, 0.35);
+      border-radius: 100px;
+      padding: 10px 28px;
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #63b3ed;
+      margin-bottom: 48px;
+    }
+
+    .slide-kickoff .sk-headline {
+      font-size: 100px;
+      font-weight: 800;
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+      text-align: center;
+      max-width: 1440px;
+      color: #ffffff;
+      margin-bottom: 40px;
+    }
+
+    .slide-kickoff .sk-headline em {
+      font-style: normal;
+      color: #63b3ed;
+    }
+
+    .slide-kickoff .sk-sub {
+      font-size: 34px;
+      font-weight: 400;
+      color: rgba(255, 255, 255, 0.7);
+      text-align: center;
+      max-width: 1000px;
+      line-height: 1.55;
+    }
+
+    .slide-kickoff .sk-meta {
+      margin-top: 72px;
+      display: flex;
+      gap: 64px;
+      align-items: center;
+    }
+
+    .slide-kickoff .sk-meta-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .slide-kickoff .sk-meta-label {
+      font-size: 18px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.45);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .slide-kickoff .sk-meta-value {
+      font-size: 26px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    .slide-kickoff .sk-divider {
+      width: 1px;
+      height: 60px;
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* ── Slide 2: 실행 계획 ── */
+    .slide-plan {
+      background: #f7f8fa;
+      color: #1a1a2e;
+      flex-direction: column;
+      padding: 96px 140px;
+      gap: 0;
+    }
+
+    .slide-plan .sp-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 72px;
+    }
+
+    .slide-plan .sp-label {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #4a7fb5;
+      margin-bottom: 20px;
+    }
+
+    .slide-plan .sp-headline {
+      font-size: 62px;
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.025em;
+      color: #0e1628;
+      max-width: 720px;
+    }
+
+    .slide-plan .sp-summary {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .slide-plan .sp-summary-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 22px;
+      font-weight: 500;
+      color: #444;
+    }
+
+    .slide-plan .sp-summary-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #4a7fb5;
+      flex-shrink: 0;
+    }
+
+    .slide-plan .sp-milestones {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+    }
+
+    .slide-plan .sp-milestone {
+      background: #ffffff;
+      border-radius: 18px;
+      padding: 44px 40px;
+      border: 1px solid #e5e8ef;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .slide-plan .sp-milestone::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #4a7fb5 0%, #63b3ed 100%);
+      border-radius: 18px 18px 0 0;
+    }
+
+    .slide-plan .sp-milestone-phase {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #4a7fb5;
+    }
+
+    .slide-plan .sp-milestone-title {
+      font-size: 30px;
+      font-weight: 700;
+      color: #0e1628;
+      line-height: 1.2;
+    }
+
+    .slide-plan .sp-milestone-period {
+      font-size: 20px;
+      font-weight: 500;
+      color: #888;
+    }
+
+    .slide-plan .sp-milestone-items {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .slide-plan .sp-milestone-item {
+      font-size: 20px;
+      color: #555;
+      line-height: 1.4;
+      padding-left: 18px;
+      position: relative;
+    }
+
+    .slide-plan .sp-milestone-item::before {
+      content: '—';
+      position: absolute;
+      left: 0;
+      color: #c0cfe0;
+    }
+  </style>
+</head>
+<body>
+
+  <deck-stage id="main-deck">
+    <!-- Slide 1: 프로젝트 킥오프 타이틀 -->
+    <section class="slide-kickoff">
+      <div class="sk-badge">Project Kickoff</div>
+      <h1 class="sk-headline">새로운 시작,<br><em>함께 만드는 미래</em></h1>
+      <p class="sk-sub">명확한 목표와 탄탄한 실행력으로<br>이번 프로젝트를 성공으로 이끕니다.</p>
+      <div class="sk-meta">
+        <div class="sk-meta-item">
+          <span class="sk-meta-label">프로젝트명</span>
+          <span class="sk-meta-value">OpenClaw Phase 3</span>
+        </div>
+        <div class="sk-divider"></div>
+        <div class="sk-meta-item">
+          <span class="sk-meta-label">기간</span>
+          <span class="sk-meta-value">2026 Q2 – Q3</span>
+        </div>
+        <div class="sk-divider"></div>
+        <div class="sk-meta-item">
+          <span class="sk-meta-label">팀 규모</span>
+          <span class="sk-meta-value">8명</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 2: 실행 계획 -->
+    <section class="slide-plan">
+      <div class="sp-header">
+        <div>
+          <p class="sp-label">실행 계획</p>
+          <h2 class="sp-headline">3단계로<br>완성하는 로드맵</h2>
+        </div>
+        <div class="sp-summary">
+          <div class="sp-summary-item">
+            <span class="sp-summary-dot"></span>
+            <span>총 기간: 24주</span>
+          </div>
+          <div class="sp-summary-item">
+            <span class="sp-summary-dot"></span>
+            <span>주요 마일스톤: 3개</span>
+          </div>
+          <div class="sp-summary-item">
+            <span class="sp-summary-dot"></span>
+            <span>스프린트: 2주 단위</span>
+          </div>
+        </div>
+      </div>
+      <div class="sp-milestones">
+        <div class="sp-milestone">
+          <span class="sp-milestone-phase">Phase 1</span>
+          <p class="sp-milestone-title">기반 구축</p>
+          <p class="sp-milestone-period">1–8주차</p>
+          <div class="sp-milestone-items">
+            <p class="sp-milestone-item">아키텍처 설계 완료</p>
+            <p class="sp-milestone-item">인프라 세팅 및 CI/CD</p>
+            <p class="sp-milestone-item">핵심 도메인 모델 구현</p>
+          </div>
+        </div>
+        <div class="sp-milestone">
+          <span class="sp-milestone-phase">Phase 2</span>
+          <p class="sp-milestone-title">기능 개발</p>
+          <p class="sp-milestone-period">9–18주차</p>
+          <div class="sp-milestone-items">
+            <p class="sp-milestone-item">주요 기능 스프린트 6회</p>
+            <p class="sp-milestone-item">베타 사용자 테스트</p>
+            <p class="sp-milestone-item">성능 최적화</p>
+          </div>
+        </div>
+        <div class="sp-milestone">
+          <span class="sp-milestone-phase">Phase 3</span>
+          <p class="sp-milestone-title">출시 준비</p>
+          <p class="sp-milestone-period">19–24주차</p>
+          <div class="sp-milestone-items">
+            <p class="sp-milestone-item">QA 및 보안 점검</p>
+            <p class="sp-milestone-item">문서화 및 교육</p>
+            <p class="sp-milestone-item">프로덕션 배포</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </deck-stage>
+
+  <!-- slide counter overlay (outside scaled canvas) -->
+  <div class="ds-counter" id="ds-counter">1 / 2</div>
+
+  <!--
+    Step A (Pitfall 1 방지): connectedCallback 타이밍 문제 해결.
+    <deck-stage> 닫는 태그 이후, 스크립트 전에 동기 init 실행.
+    이 시점에 parser가 모든 <section>을 DOM에 넣은 상태.
+  -->
+  <script>
+    // ── deck-stage Custom Element ──────────────────────────────────────────────
+
+    class DeckStage extends HTMLElement {
+      constructor() {
+        super();
+        this._currentIndex = 0;
+        this._sections = [];
+        this._canvas = null;
+        this._boundKeydown = this._onKeydown.bind(this);
+        this._ro = null;
+      }
+
+      connectedCallback() {
+        // intentionally deferred: _initWithChildren() called from post-parse script
+      }
+
+      _initWithChildren() {
+        // 1. Wrap sections in .ds-canvas
+        this._canvas = document.createElement('div');
+        this._canvas.className = 'ds-canvas';
+
+        // Move direct child sections into canvas
+        const rawSections = Array.from(this.children);
+        rawSections.forEach(el => {
+          if (el.tagName === 'SECTION') {
+            this._canvas.appendChild(el);
+          }
+        });
+        this.appendChild(this._canvas);
+
+        // 2. Collect sections and apply data-screen-label
+        this._sections = Array.from(this._canvas.querySelectorAll('section'));
+        this._sections.forEach((sec, i) => {
+          const num = String(i + 1).padStart(2, '0');
+          const labels = ['Kickoff', 'Plan'];
+          sec.setAttribute('data-screen-label', `${num} ${labels[i] || 'Slide'}`);
+          sec.setAttribute('data-om-validate', 'true');
+        });
+
+        // 3. Restore from localStorage
+        const saved = parseInt(localStorage.getItem('deck-index') || '0', 10);
+        const startIdx = (saved >= 0 && saved < this._sections.length) ? saved : 0;
+
+        this._currentIndex = startIdx;
+        this._activate(startIdx, false);
+
+        // 4. Scale
+        this._applyScale();
+
+        // 5. Listeners
+        document.addEventListener('keydown', this._boundKeydown);
+        this._ro = new ResizeObserver(() => this._applyScale());
+        this._ro.observe(document.body);
+
+        // 6. Touch support
+        let touchStartX = 0;
+        this.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+        this.addEventListener('touchend', e => {
+          const dx = e.changedTouches[0].clientX - touchStartX;
+          if (Math.abs(dx) > 50) dx < 0 ? this.next() : this.prev();
+        }, { passive: true });
+
+        // 7. Expose window.__deck API
+        window.__deck = {
+          getSlideCount: () => this._sections.length,
+          goToSlide: (n) => {
+            const idx = typeof n === 'number' ? n : parseInt(n, 10);
+            if (idx >= 0 && idx < this._sections.length) {
+              this._activate(idx);
+            }
+          },
+          getCurrentSlide: () => this._currentIndex,
+        };
+      }
+
+      _activate(idx, persist = true) {
+        this._sections.forEach((sec, i) => {
+          sec.setAttribute('data-active', i === idx ? 'true' : 'false');
+        });
+        this._currentIndex = idx;
+
+        // Update counter
+        const counter = document.getElementById('ds-counter');
+        if (counter) counter.textContent = `${idx + 1} / ${this._sections.length}`;
+
+        // Persist
+        if (persist) localStorage.setItem('deck-index', idx);
+
+        // postMessage to parent
+        try {
+          window.parent.postMessage({ slideIndexChanged: idx }, '*');
+        } catch (_) {}
+      }
+
+      _applyScale() {
+        if (this.hasAttribute('noscale')) {
+          if (this._canvas) this._canvas.style.transform = '';
+          return;
+        }
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const scale = Math.min(vw / 1920, vh / 1080);
+        if (this._canvas) {
+          this._canvas.style.transform = `scale(${scale})`;
+        }
+      }
+
+      next() {
+        if (this._currentIndex < this._sections.length - 1) {
+          this._activate(this._currentIndex + 1);
+        }
+      }
+
+      prev() {
+        if (this._currentIndex > 0) {
+          this._activate(this._currentIndex - 1);
+        }
+      }
+
+      _onKeydown(e) {
+        if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); this.next(); }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); this.prev(); }
+      }
+
+      disconnectedCallback() {
+        document.removeEventListener('keydown', this._boundKeydown);
+        if (this._ro) this._ro.disconnect();
+      }
+
+      // noscale attribute observer
+      static get observedAttributes() { return ['noscale']; }
+      attributeChangedCallback() { this._applyScale(); }
+    }
+
+    // Register AFTER the closing </deck-stage> tag so connectedCallback
+    // fires with children already in DOM. Then manually call _initWithChildren.
+    customElements.define('deck-stage', DeckStage);
+
+    // Synchronous init — parser has already added all <section> elements
+    document.querySelectorAll('deck-stage').forEach(stage => stage._initWithChildren());
+  </script>
+
+</body>
+</html>

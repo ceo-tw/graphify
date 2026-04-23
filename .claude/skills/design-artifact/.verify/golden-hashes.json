@@ -1,0 +1,15 @@
+{
+  "fixtures/sample-deck.html": {
+    "slide_count": 3,
+    "detection_method": "deck_api",
+    "pptx_md5": "2b6a4f8980338a979c228e1c291d5cff",
+    "pptx_size": 296417,
+    "_note": "Updated 2026-04-21 after Fix 1: goToSlide is now correctly 1-indexed per deck-authoring.md:195 contract"
+  },
+  "fixtures/deck-without-export-api.html": {
+    "slide_count": 2,
+    "detection_method": "deck_stage_sections",
+    "pptx_md5": "96254030ffd12df7f8b2ced73250c128",
+    "pptx_size": 112416
+  }
+}

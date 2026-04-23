@@ -1,0 +1,265 @@
+# Graph Data Registry
+# Single source of truth for graphify build artifacts
+#
+# Bulk rebuild (all 18 domains):
+#   node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts
+#
+# _global directed graph:
+#   .claude/graphify/.venv/bin/graphify build ./src --directed --out-dir .claude/architecture/graph/_global/graphify-out
+#
+# Single domain rebuild:
+#   node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts --only <domain>
+
+version: "1.0"
+type: "graph-data"
+last_updated: "2026-04-21"
+
+items:
+  # === Build Summary (CRITICAL — wm prerequisite check reads this) ===
+
+  - id: GRAPH-001
+    name: build-summary
+    kind: file
+    path: .claude/architecture/graph/build-summary.json
+    priority: CRITICAL
+    hard: true
+    referenced_by:
+      - .claude/skills/wm/SKILL.md (§1 Precondition)
+      - .claude/skills/wm-setup/SKILL.md (VERIFY mode)
+    install_command: "node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts"
+    verify_command: "test -f .claude/architecture/graph/build-summary.json"
+    validation:
+      type: file_exists
+
+  # === _global Directed Graph (CRITICAL — review-orchestrator Graphify Fast Pass) ===
+
+  - id: GRAPH-002
+    name: _global
+    kind: file
+    path: .claude/architecture/graph/_global/graphify-out/graph.json
+    priority: CRITICAL
+    hard: true
+    referenced_by:
+      - .claude/agents/review-orchestrator.md (§2 Graphify Fast Pass)
+      - .claude/agents/knowledge-graph-navigator.md
+      - .claude/skills/wm/rules/processes/development-process.md (A-2/A-3/C-1)
+    install_command: ".claude/graphify/.venv/bin/graphify build ./src --directed --out-dir .claude/architecture/graph/_global/graphify-out"
+    verify_command: "jq -e '.nodes | length > 0' .claude/architecture/graph/_global/graphify-out/graph.json"
+    validation:
+      type: custom
+
+  # === 18 Domain Graphs (HIGH — blast-radius hints, review analysis) ===
+
+  - id: GRAPH-003
+    name: domain:agents-orchestration
+    kind: file
+    path: .claude/architecture/graph/agents-orchestration/graphify-out/graph.json
+    priority: HIGH
+    hard: false
+    referenced_by:
+      - .claude/agents/review-orchestrator.md
+      - .claude/agents/design.md
+    install_command: "node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts --only agents-orchestration"
+    verify_command: "jq -e '.nodes | length > 0' .claude/architecture/graph/agents-orchestration/graphify-out/graph.json"
+    validation:
+      type: custom
+
+  - id: GRAPH-004
+    name: domain:ai-chat
+    kind: file
+    path: .claude/architecture/graph/ai-chat/graphify-out/graph.json
+    priority: HIGH
+    hard: false
+    referenced_by:
+      - .claude/agents/review-orchestrator.md
+      - .claude/agents/design.md
+    install_command: "node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts --only ai-chat"
+    verify_command: "jq -e '.nodes | length > 0' .claude/architecture/graph/ai-chat/graphify-out/graph.json"
+    validation:
+      type: custom
+
+  - id: GRAPH-005
+    name: domain:ai-elements-official
+    kind: file
+    path: .claude/architecture/graph/ai-elements-official/graphify-out/graph.json
+    priority: HIGH
+    hard: false
+    install_command: "node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts --only ai-elements-official"
+    verify_command: "jq -e '.nodes | length > 0' .claude/architecture/graph/ai-elements-official/graphify-out/graph.json"
+    validation:
+      type: custom
+
+  - id: GRAPH-006
+    name: domain:analytics-dashboard
+    kind: file
+    path: .claude/architecture/graph/analytics-dashboard/graphify-out/graph.json
+    priority: HIGH
+    hard: false
+    install_command: "node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts --only analytics-dashboard"
+    verify_command: "jq -e '.nodes | length > 0' .claude/architecture/graph/analytics-dashboard/graphify-out/graph.json"
+    validation:
+      type: custom
+
+  - id: GRAPH-007
+    name: domain:announcements-notifications
+    kind: file
+    path: .claude/architecture/graph/announcements-notifications/graphify-out/graph.json
+    priority: HIGH
+    hard: false
+    install_command: "node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts --only announcements-notifications"
+    verify_command: "jq -e '.nodes | length > 0' .claude/architecture/graph/announcements-notifications/graphify-out/graph.json"
+    validation:
+      type: custom
+
+  - id: GRAPH-008
+    name: domain:audit-logs
+    kind: file
+    path: .claude/architecture/graph/audit-logs/graphify-out/graph.json
+    priority: HIGH
+    hard: false
+    install_command: "node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts --only audit-logs"
+    verify_command: "jq -e '.nodes | length > 0' .claude/architecture/graph/audit-logs/graphify-out/graph.json"
+    validation:
+      type: custom
+
+  - id: GRAPH-009
+    name: domain:auth-identity
+    kind: file
+    path: .claude/architecture/graph/auth-identity/graphify-out/graph.json
+    priority: HIGH
+    hard: false
+    install_command: "node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts --only auth-identity"
+    verify_command: "jq -e '.nodes | length > 0' .claude/architecture/graph/auth-identity/graphify-out/graph.json"
+    validation:
+      type: custom
+
+  - id: GRAPH-010
+    name: domain:backend-infra
+    kind: file
+    path: .claude/architecture/graph/backend-infra/graphify-out/graph.json
+    priority: HIGH
+    hard: false
+    install_command: "node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts --only backend-infra"
+    verify_command: "jq -e '.nodes | length > 0' .claude/architecture/graph/backend-infra/graphify-out/graph.json"
+    validation:
+      type: custom
+
+  - id: GRAPH-011
+    name: domain:billing
+    kind: file
+    path: .claude/architecture/graph/billing/graphify-out/graph.json
+    priority: HIGH
+    hard: false
+    install_command: "node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts --only billing"
+    verify_command: "jq -e '.nodes | length > 0' .claude/architecture/graph/billing/graphify-out/graph.json"
+    validation:
+      type: custom
+
+  - id: GRAPH-012
+    name: domain:channels-documents
+    kind: file
+    path: .claude/architecture/graph/channels-documents/graphify-out/graph.json
+    priority: HIGH
+    hard: false
+    install_command: "node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts --only channels-documents"
+    verify_command: "jq -e '.nodes | length > 0' .claude/architecture/graph/channels-documents/graphify-out/graph.json"
+    validation:
+      type: custom
+
+  - id: GRAPH-013
+    name: domain:i18n-locale
+    kind: file
+    path: .claude/architecture/graph/i18n-locale/graphify-out/graph.json
+    priority: HIGH
+    hard: false
+    install_command: "node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts --only i18n-locale"
+    verify_command: "jq -e '.nodes | length > 0' .claude/architecture/graph/i18n-locale/graphify-out/graph.json"
+    validation:
+      type: custom
+
+  - id: GRAPH-014
+    name: domain:onboarding-flow
+    kind: file
+    path: .claude/architecture/graph/onboarding-flow/graphify-out/graph.json
+    priority: HIGH
+    hard: false
+    install_command: "node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts --only onboarding-flow"
+    verify_command: "jq -e '.nodes | length > 0' .claude/architecture/graph/onboarding-flow/graphify-out/graph.json"
+    validation:
+      type: custom
+
+  - id: GRAPH-015
+    name: domain:portal-hooks-lib
+    kind: file
+    path: .claude/architecture/graph/portal-hooks-lib/graphify-out/graph.json
+    priority: HIGH
+    hard: false
+    install_command: "node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts --only portal-hooks-lib"
+    verify_command: "jq -e '.nodes | length > 0' .claude/architecture/graph/portal-hooks-lib/graphify-out/graph.json"
+    validation:
+      type: custom
+
+  - id: GRAPH-016
+    name: domain:portal-ui-primitives
+    kind: file
+    path: .claude/architecture/graph/portal-ui-primitives/graphify-out/graph.json
+    priority: HIGH
+    hard: false
+    install_command: "node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts --only portal-ui-primitives"
+    verify_command: "jq -e '.nodes | length > 0' .claude/architecture/graph/portal-ui-primitives/graphify-out/graph.json"
+    validation:
+      type: custom
+
+  - id: GRAPH-017
+    name: domain:settings-cost
+    kind: file
+    path: .claude/architecture/graph/settings-cost/graphify-out/graph.json
+    priority: HIGH
+    hard: false
+    install_command: "node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts --only settings-cost"
+    verify_command: "jq -e '.nodes | length > 0' .claude/architecture/graph/settings-cost/graphify-out/graph.json"
+    validation:
+      type: custom
+
+  - id: GRAPH-018
+    name: domain:tasks-service
+    kind: file
+    path: .claude/architecture/graph/tasks-service/graphify-out/graph.json
+    priority: HIGH
+    hard: false
+    install_command: "node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts --only tasks-service"
+    verify_command: "jq -e '.nodes | length > 0' .claude/architecture/graph/tasks-service/graphify-out/graph.json"
+    validation:
+      type: custom
+
+  - id: GRAPH-019
+    name: domain:webhooks-integrations
+    kind: file
+    path: .claude/architecture/graph/webhooks-integrations/graphify-out/graph.json
+    priority: HIGH
+    hard: false
+    install_command: "node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts --only webhooks-integrations"
+    verify_command: "jq -e '.nodes | length > 0' .claude/architecture/graph/webhooks-integrations/graphify-out/graph.json"
+    validation:
+      type: custom
+
+  - id: GRAPH-020
+    name: domain:workflow-tasks-ui
+    kind: file
+    path: .claude/architecture/graph/workflow-tasks-ui/graphify-out/graph.json
+    priority: HIGH
+    hard: false
+    install_command: "node --experimental-strip-types --no-warnings scripts/graphify/build-all-graphs.ts --only workflow-tasks-ui"
+    verify_command: "jq -e '.nodes | length > 0' .claude/architecture/graph/workflow-tasks-ui/graphify-out/graph.json"
+    validation:
+      type: custom
+
+# === Summary ===
+# CRITICAL (hard=true): 2 (build-summary, _global)
+# HIGH (hard=false): 18 domain graphs (GRAPH-003 through GRAPH-020)
+# Total: 20 items
+# Domains: agents-orchestration, ai-chat, ai-elements-official, analytics-dashboard,
+#          announcements-notifications, audit-logs, auth-identity, backend-infra,
+#          billing, channels-documents, i18n-locale, onboarding-flow, portal-hooks-lib,
+#          portal-ui-primitives, settings-cost, tasks-service, webhooks-integrations,
+#          workflow-tasks-ui

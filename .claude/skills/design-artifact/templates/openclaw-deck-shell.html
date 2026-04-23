@@ -1,0 +1,682 @@
+<!doctype html>
+<!--
+  ============================================================
+  OpenClaw Cloud — Deck Shell Template (v1)
+  ============================================================
+
+  Source: designs/onboarding-first-week-deck/index.html
+  Used by: design-artifact skill (SKILL.md Step 4 Implementation)
+  Reference: .claude/skills/design-artifact/references/deck-authoring.md
+
+  USAGE
+    1. cp this file to designs/{feature-name}/index.html
+    2. Replace <section> placeholders with your slides (same 1920x1080 coordinate system)
+    3. DO NOT modify:
+       - <deck-stage> web component definition
+       - .player-chrome / .progress-bar / .slide-counter-global / .theme-toggle markup
+       - TWEAK_DEFAULTS block or initTweaks IIFE
+       - window.__deck API surface (getSlideCount / goToSlide / getCurrentSlide)
+       - noscale attribute handling
+    4. OK to extend:
+       - CSS tokens in :root (add brand variables, keep existing ones)
+       - TWEAK_DEFAULTS (add new tweak keys)
+       - <head> fonts or meta
+
+  COMPLIANCE
+    Verified against design-verifier "Shell Compliance Check" (PHASE 3 of
+    plan .claude/plans/polymorphic-humming-dijkstra.md).
+  ============================================================
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OpenClaw Deck Shell Template</title>
+
+  <template id="__bundler_thumbnail">
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100" height="100" fill="oklch(0.514 0.222 16.935)" />
+      <text x="50" y="55" text-anchor="middle" font-size="40" fill="white">D</text>
+    </svg>
+  </template>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&display=swap');
+
+    :root {
+      --background: oklch(1 0 0);
+      --foreground: oklch(0.153 0.006 107.1);
+      --muted: oklch(0.966 0.005 106.5);
+      --muted-foreground: oklch(0.58 0.031 107.3);
+      --border: oklch(0.93 0.007 106.5);
+      --card: oklch(1 0 0);
+      --card-foreground: oklch(0.153 0.006 107.1);
+      --primary: oklch(0.514 0.222 16.935);
+      --primary-foreground: oklch(0.988 0.003 106.5);
+      --accent-bg: oklch(0.97 0.006 107 / 1);
+      --accent-soft: oklch(0.94 0.01 107 / 1);
+      --ring: oklch(0.514 0.222 16.935 / 0.35);
+      --radius: 0.45rem;
+      --radius-sm: calc(var(--radius) * 0.6);
+      --radius-md: calc(var(--radius) * 0.8);
+      --radius-lg: var(--radius);
+      --radius-xl: calc(var(--radius) * 1.4);
+      --shadow-sm: 0 1px 2px rgba(60, 40, 35, 0.06), 0 1px 3px rgba(60, 40, 35, 0.05);
+      --shadow-md: 0 4px 16px rgba(60, 40, 35, 0.07), 0 2px 6px rgba(60, 40, 35, 0.05);
+      --shadow-lg: 0 24px 60px rgba(60, 40, 35, 0.10), 0 8px 20px rgba(60, 40, 35, 0.06);
+
+      --success: #00A86B;
+      --success-foreground: #FFFFFF;
+      --warning: #C4A000;
+      --warning-foreground: #4D3F00;
+      --info: #007ACC;
+      --info-foreground: #FFFFFF;
+      --destructive: oklch(0.577 0.245 27.325);
+      --destructive-foreground: #FFFFFF;
+
+      --sans: 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
+      --mono: 'Geist Mono', ui-monospace, SFMono-Regular, monospace;
+    }
+
+    .dark {
+      --background: oklch(0.153 0.006 107.1);
+      --foreground: oklch(0.988 0.003 106.5);
+      --muted: oklch(0.22 0.013 107.4);
+      --muted-foreground: oklch(0.68 0.024 107.3);
+      --border: oklch(1 0 0 / 10%);
+      --card: oklch(0.228 0.013 107.4);
+      --card-foreground: oklch(0.988 0.003 106.5);
+      --primary: oklch(0.62 0.22 16.935);
+      --primary-foreground: oklch(0.988 0.003 106.5);
+      --accent-bg: oklch(0.21 0.013 107 / 1);
+      --accent-soft: oklch(0.26 0.014 107 / 1);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.35);
+      --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.35);
+      --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.55), 0 8px 20px rgba(0, 0, 0, 0.4);
+
+      --success: #00BA6C;
+      --success-foreground: #FFFFFF;
+      --warning: #D4B000;
+      --warning-foreground: #333300;
+      --info: #4D9FE6;
+      --info-foreground: #001A33;
+      --destructive: oklch(0.704 0.191 22.216);
+      --destructive-foreground: #FAFAFA;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #000;
+      color: var(--foreground);
+      font-family: var(--sans);
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    /* =========== deck-stage web component =========== */
+    deck-stage {
+      position: fixed;
+      inset: 0;
+      display: block;
+      background: #000;
+      overflow: hidden;
+    }
+    deck-stage .ds-canvas {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 1920px;
+      height: 1080px;
+      transform-origin: center center;
+      background: var(--background);
+      color: var(--foreground);
+      overflow: hidden;
+    }
+    deck-stage[noscale] .ds-canvas {
+      transform: translate(-50%, -50%) scale(1);
+    }
+    deck-stage .ds-canvas > section {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      display: none;
+      background: var(--background);
+      color: var(--foreground);
+    }
+    deck-stage .ds-canvas > section[data-active="true"] {
+      display: block;
+    }
+    deck-stage .ds-counter {
+      position: absolute;
+      right: 32px;
+      bottom: 28px;
+      font-family: var(--mono);
+      font-size: 20px;
+      color: var(--muted-foreground);
+      letter-spacing: 0.04em;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* Player chrome (OUTSIDE scaled stage) */
+    .player-chrome {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1000;
+    }
+    .player-chrome button {
+      pointer-events: auto;
+    }
+    .nav-btn {
+      position: fixed;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 48px;
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.92);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 160ms ease, border-color 160ms ease;
+      font-family: var(--mono);
+    }
+    .nav-btn:hover {
+      background: rgba(255,255,255,0.16);
+      border-color: rgba(255,255,255,0.22);
+    }
+    .nav-prev { left: 16px; }
+    .nav-next { right: 16px; }
+    .progress-bar {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      height: 3px;
+      background: rgba(255,255,255,0.08);
+      z-index: 1001;
+      pointer-events: none;
+    }
+    .progress-fill {
+      height: 100%;
+      background: oklch(0.62 0.22 16.935);
+      transition: width 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .slide-counter-global {
+      position: fixed;
+      right: 20px;
+      bottom: 14px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: rgba(255,255,255,0.68);
+      letter-spacing: 0.06em;
+      z-index: 1001;
+      pointer-events: none;
+    }
+    .theme-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      padding: 8px 14px;
+      background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.9);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      z-index: 1001;
+      pointer-events: auto;
+    }
+    .theme-toggle:hover { background: rgba(255,255,255,0.16); }
+
+    /* Tweaks panel */
+    .tweaks-panel {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      background: rgba(18, 14, 13, 0.92);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px;
+      padding: 14px 20px;
+      gap: 22px;
+      z-index: 1002;
+      font-family: var(--mono);
+      color: rgba(255,255,255,0.92);
+      font-size: 12px;
+      letter-spacing: 0.05em;
+      align-items: center;
+    }
+    .tweaks-panel.active { display: flex; }
+    .tweaks-panel label {
+      display: flex; gap: 8px; align-items: center;
+      text-transform: uppercase; font-weight: 500;
+    }
+    .tweaks-panel select {
+      background: rgba(255,255,255,0.08);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.16);
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    .tweaks-title {
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      color: oklch(0.75 0.18 20);
+      padding-right: 12px;
+      border-right: 1px solid rgba(255,255,255,0.14);
+    }
+
+    /* Density tweak — tightens spacing on content-dense slides */
+    [data-density="compact"] deck-stage .ds-canvas > section {
+      --density-scale: 0.88;
+    }
+    [data-density="compact"] deck-stage .ds-canvas > section h1,
+    [data-density="compact"] deck-stage .ds-canvas > section h2,
+    [data-density="compact"] deck-stage .ds-canvas > section h3 {
+      letter-spacing: -0.028em;
+    }
+
+    /* Print */
+    @media print {
+      html, body { background: white; overflow: visible; }
+      deck-stage { position: static; width: 100%; height: auto; background: white; }
+      deck-stage .ds-canvas { display: contents; }
+      deck-stage .ds-canvas > section {
+        display: block !important;
+        position: relative;
+        page-break-after: always;
+        width: 1920px;
+        height: 1080px;
+        transform: none !important;
+      }
+      .player-chrome, .tweaks-panel, .theme-toggle, .progress-bar, .slide-counter-global { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <script>
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "theme": "light",
+      "density": "comfortable"
+    }/*EDITMODE-END*/;
+  </script>
+
+  <!-- Tweaks listener first, then announce -->
+  <script>
+    (function initTweaks(){
+      const state = Object.assign({}, TWEAK_DEFAULTS);
+
+      function applyTheme(t) {
+        document.documentElement.classList.toggle('dark', t === 'dark');
+        try { localStorage.setItem('oafw-theme', t); } catch (e) {}
+      }
+      function applyDensity(d) {
+        document.documentElement.dataset.density = d;
+      }
+      function applyAll() {
+        applyTheme(state.theme);
+        applyDensity(state.density);
+        const panel = document.getElementById('tweaks-panel');
+        if (panel) {
+          const themeSel = panel.querySelector('[data-key="theme"]');
+          const densitySel = panel.querySelector('[data-key="density"]');
+          if (themeSel) themeSel.value = state.theme;
+          if (densitySel) densitySel.value = state.density;
+        }
+        const toggle = document.querySelector('.theme-toggle');
+        if (toggle) toggle.textContent = state.theme === 'dark' ? 'LIGHT' : 'DARK';
+      }
+
+      // Restore theme from localStorage if present
+      try {
+        const saved = localStorage.getItem('oafw-theme');
+        if (saved === 'light' || saved === 'dark') state.theme = saved;
+      } catch (e) {}
+
+      window.addEventListener('message', (e) => {
+        if (!e.data || typeof e.data !== 'object') return;
+        if (e.data.type === '__activate_edit_mode') {
+          document.getElementById('tweaks-panel')?.classList.add('active');
+        } else if (e.data.type === '__deactivate_edit_mode') {
+          document.getElementById('tweaks-panel')?.classList.remove('active');
+        }
+      });
+
+      window.addEventListener('DOMContentLoaded', () => {
+        applyAll();
+
+        // Theme toggle
+        document.querySelector('.theme-toggle')?.addEventListener('click', () => {
+          state.theme = state.theme === 'dark' ? 'light' : 'dark';
+          applyAll();
+          window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { theme: state.theme } }, '*');
+        });
+
+        // Tweaks panel controls
+        document.getElementById('tweaks-panel')?.addEventListener('change', (ev) => {
+          const key = ev.target?.dataset?.key;
+          if (!key) return;
+          state[key] = ev.target.value;
+          applyAll();
+          window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { [key]: state[key] } }, '*');
+        });
+
+        // Announce edit mode availability
+        try {
+          window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+        } catch (e) {}
+      });
+
+      window.__deckTweaks = state;
+    })();
+  </script>
+
+  <!-- deck-stage web component definition -->
+  <script>
+    (function defineDeckStage(){
+      class DeckStage extends HTMLElement {
+        constructor() {
+          super();
+          this.index = 0;
+          this.sections = [];
+          this._onKey = this._onKey.bind(this);
+          this._fit = this._fit.bind(this);
+        }
+
+        connectedCallback() {
+          // NOTE: connectedCallback fires BEFORE <section> children are parsed
+          // (classic custom element timing pitfall). Initialization that
+          // depends on children happens in _initWithChildren(), invoked from
+          // a synchronous inline script AFTER the deck-stage closing tag.
+          this._initialized = false;
+        }
+
+        static get observedAttributes() { return ['noscale']; }
+
+        attributeChangedCallback(name) {
+          if (name === 'noscale' && this._initialized) {
+            if (this.hasAttribute('noscale')) {
+              window.removeEventListener('resize', this._fit);
+              if (this.canvas) this.canvas.style.transform = 'translate(-50%, -50%) scale(1)';
+            } else {
+              window.addEventListener('resize', this._fit);
+              this._fit();
+            }
+          }
+        }
+
+        _initWithChildren() {
+          if (this._initialized) return;
+          this._initialized = true;
+
+          // Find direct child sections and wrap them into a canvas
+          const sections = Array.from(this.children).filter(el => el.tagName === 'SECTION');
+          this.sections = sections;
+          const total = sections.length;
+
+          // Apply data-screen-label (1-indexed, zero padded)
+          sections.forEach((sec, i) => {
+            const idx = String(i + 1).padStart(2, '0');
+            const title = sec.getAttribute('data-slide-title') || '';
+            sec.setAttribute('data-screen-label', `${idx} ${title}`.trim());
+            sec.setAttribute('data-om-validate', '');
+            // Counter inside each section
+            if (!sec.querySelector('.ds-counter')) {
+              const c = document.createElement('div');
+              c.className = 'ds-counter';
+              c.textContent = `${idx} / ${String(total).padStart(2, '0')}`;
+              sec.appendChild(c);
+            }
+          });
+
+          // Wrap existing sections in a canvas wrapper
+          const canvas = document.createElement('div');
+          canvas.className = 'ds-canvas';
+          sections.forEach(sec => canvas.appendChild(sec));
+          this.appendChild(canvas);
+          this.canvas = canvas;
+
+          // Restore index
+          try {
+            const saved = parseInt(localStorage.getItem('deck-index') || '0', 10);
+            if (!isNaN(saved) && saved >= 0 && saved < total) {
+              this.index = saved;
+            }
+          } catch (e) {}
+
+          this._render();
+
+          if (!this.hasAttribute('noscale')) {
+            window.addEventListener('resize', this._fit);
+            this._fit();
+          }
+
+          document.addEventListener('keydown', this._onKey);
+
+          // Expose navigation API
+          this.next = () => this.go(this.index + 1);
+          this.prev = () => this.go(this.index - 1);
+          this.go = (i) => {
+            const total = this.sections.length;
+            if (i < 0) i = 0;
+            if (i >= total) i = total - 1;
+            this.index = i;
+            this._render();
+            try { localStorage.setItem('deck-index', String(i)); } catch (e) {}
+            try { window.parent.postMessage({ slideIndexChanged: i }, '*'); } catch (e) {}
+            this.dispatchEvent(new CustomEvent('slide-change', { detail: { index: i, total } }));
+          };
+
+          // Expose window.__deck tier-1 API (deck-authoring.md §PPTX Export Contract)
+          // getSlideCount()      — total number of slides
+          // goToSlide(n)         — 1-indexed; no-op if out of range
+          // getCurrentSlide()    — 1-indexed current slide number
+          window.__deck = {
+            getSlideCount: () => this.sections.length,
+            goToSlide: (n) => {
+              if (typeof n !== 'number' || n < 1 || n > this.sections.length) return;
+              this.go(n - 1);
+            },
+            getCurrentSlide: () => this.index + 1,
+          };
+
+          // Initial broadcast
+          try { window.parent.postMessage({ slideIndexChanged: this.index }, '*'); } catch (e) {}
+          this.dispatchEvent(new CustomEvent('slide-change', { detail: { index: this.index, total } }));
+        }
+
+        disconnectedCallback() {
+          window.removeEventListener('resize', this._fit);
+          document.removeEventListener('keydown', this._onKey);
+        }
+
+        _render() {
+          this.sections.forEach((sec, i) => {
+            if (i === this.index) sec.setAttribute('data-active', 'true');
+            else sec.removeAttribute('data-active');
+          });
+        }
+
+        _fit() {
+          if (!this.canvas) return;
+          const vw = window.innerWidth;
+          const vh = window.innerHeight;
+          const scale = Math.min(vw / 1920, vh / 1080);
+          this.canvas.style.transform = `translate(-50%, -50%) scale(${scale})`;
+        }
+
+        _onKey(e) {
+          // Ignore if focus is on an input/select
+          const tag = document.activeElement?.tagName;
+          if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
+          if (e.key === 'ArrowRight' || e.key === ' ' || e.code === 'Space') {
+            e.preventDefault();
+            this.go(this.index + 1);
+          } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            this.go(this.index - 1);
+          } else if (e.key === 'Home') {
+            e.preventDefault();
+            this.go(0);
+          } else if (e.key === 'End') {
+            e.preventDefault();
+            this.go(this.sections.length - 1);
+          }
+        }
+      }
+      customElements.define('deck-stage', DeckStage);
+    })();
+  </script>
+
+  <!-- Pinned React + Babel -->
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <!--
+    SLIDE CONTENT — replace these placeholder sections with actual slides.
+    Each <section> maps to one slide. Keep id and data-slide-title attributes.
+    The 1920x1080 coordinate system is enforced by deck-stage .ds-canvas.
+    React components can be mounted into each section via ReactDOM.createRoot().
+  -->
+  <deck-stage>
+    <section data-slide-title="First slide" id="slide-01"></section>
+    <section data-slide-title="Second slide" id="slide-02"></section>
+    <section data-slide-title="Third slide" id="slide-03"></section>
+  </deck-stage>
+
+  <!--
+    PITFALL 1 FIX: _initWithChildren() is called synchronously here, AFTER the
+    deck-stage closing tag so all <section> children are already parsed.
+    This script also registers slide-change listeners before calling init so
+    the initial slide-change event is captured correctly.
+  -->
+  <script>
+    (function initDeckStages() {
+      const counter = document.getElementById('counter-global');
+      const progress = document.getElementById('progress-fill');
+      document.querySelectorAll('deck-stage').forEach((stage) => {
+        if (counter && progress) {
+          stage.addEventListener('slide-change', (e) => {
+            const { index, total } = e.detail;
+            const idx = String(index + 1).padStart(2, '0');
+            const tot = String(total).padStart(2, '0');
+            counter.textContent = `${idx} / ${tot}`;
+            progress.style.width = `${((index + 1) / total) * 100}%`;
+          });
+        }
+        if (typeof stage._initWithChildren === 'function') {
+          stage._initWithChildren();
+        }
+      });
+    })();
+  </script>
+
+  <div class="player-chrome">
+    <button class="nav-btn nav-prev" aria-label="Previous slide" onclick="document.querySelector('deck-stage').prev()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <button class="nav-btn nav-next" aria-label="Next slide" onclick="document.querySelector('deck-stage').next()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+  </div>
+
+  <button class="theme-toggle" aria-label="Toggle theme">DARK</button>
+
+  <div class="progress-bar">
+    <div class="progress-fill" id="progress-fill" style="width: 33.33%;"></div>
+  </div>
+
+  <div class="slide-counter-global" id="counter-global">01 / 03</div>
+
+  <div class="tweaks-panel" id="tweaks-panel">
+    <span class="tweaks-title">TWEAKS</span>
+    <label>
+      THEME
+      <select data-key="theme">
+        <option value="light">light</option>
+        <option value="dark">dark</option>
+      </select>
+    </label>
+    <label>
+      DENSITY
+      <select data-key="density">
+        <option value="comfortable">comfortable</option>
+        <option value="compact">compact</option>
+      </select>
+    </label>
+  </div>
+
+  <!--
+    BABEL / REACT BLOCK — add your JSX components here.
+    All components must be inline in this single script block (no external .jsx src).
+    Use ReactDOM.createRoot(document.getElementById('slide-NN')).render(<SlideNN />) per slide.
+    Name style objects uniquely: e.g. const slide01Styles = {} — never const styles = {}.
+  -->
+  <script type="text/babel">
+    const { useEffect, useRef, useState } = React;
+
+    // TODO: Replace placeholder slides with actual React components.
+    // Each function mounts into its corresponding <section id="slide-NN">.
+
+    function Slide01() {
+      return (
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: 'var(--sans)', color: 'var(--muted-foreground)',
+          fontSize: '28px', letterSpacing: '0.04em',
+        }}>
+          Slide 01 — replace with content
+        </div>
+      );
+    }
+
+    function Slide02() {
+      return (
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: 'var(--sans)', color: 'var(--muted-foreground)',
+          fontSize: '28px', letterSpacing: '0.04em',
+        }}>
+          Slide 02 — replace with content
+        </div>
+      );
+    }
+
+    function Slide03() {
+      return (
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: 'var(--sans)', color: 'var(--muted-foreground)',
+          fontSize: '28px', letterSpacing: '0.04em',
+        }}>
+          Slide 03 — replace with content
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('slide-01')).render(<Slide01 />);
+    ReactDOM.createRoot(document.getElementById('slide-02')).render(<Slide02 />);
+    ReactDOM.createRoot(document.getElementById('slide-03')).render(<Slide03 />);
+  </script>
+</body>
+</html>

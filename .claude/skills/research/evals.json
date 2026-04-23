@@ -1,0 +1,42 @@
+{
+  "skill_name": "research",
+  "description": "research 스킬 테스트 케이스. 검색 모드, 출력 형식, 사용자 의사결정 흐름을 검증합니다.",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/research OAuth 2.0",
+      "expected_output": "일반 모드(5-7회 검색). 주제 분석 -> 다각도 검색 -> 정보 통합 -> 리포트 생성 -> 사용자 의사결정",
+      "expected_mode": "normal",
+      "expected_search_count": "5-7",
+      "expected_output_path": "docs/research/YYYYMMDD-oauth-2-0.md",
+      "expected_steps": ["analyze", "search", "integrate", "report", "user_decision"],
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "/research JWT vs Session --quick",
+      "expected_output": "빠른 모드(3회 검색). 비교 분석 중심. 검색 횟수 제한.",
+      "expected_mode": "quick",
+      "expected_search_count": "3",
+      "expected_comparison": true,
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "/research React Server Components --deep",
+      "expected_output": "심층 모드(10회 검색). advanced search depth 사용. 포괄적 분석.",
+      "expected_mode": "deep",
+      "expected_search_count": "10",
+      "expected_search_depth": "advanced",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "/research 클린 아키텍처 적용 방법",
+      "expected_output": "한국어 주제 정상 처리. 키워드 추출 후 검색. 리포트 생성.",
+      "expected_mode": "normal",
+      "expected_language": "ko",
+      "files": []
+    }
+  ]
+}

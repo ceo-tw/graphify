@@ -1,0 +1,46 @@
+# Environment Variables Registry (wm-specific)
+# Single source of truth for wm workflow environment variables
+# Note: General project env vars (ENABLE_TOOL_SEARCH, MAX_THINKING_TOKENS, etc.)
+# are tracked in settings.yaml under the environment: section.
+# This registry covers wm-specific path variables.
+
+version: "1.0"
+type: "env-vars"
+last_updated: "2026-04-21"
+
+items:
+  - id: ENV-001
+    name: CLAUDE_PROJECT_DIR
+    kind: env-var
+    priority: CRITICAL
+    hard: true
+    referenced_by:
+      - .claude/skills/wm/SKILL.md
+      - .claude/skills/wm-setup/SKILL.md
+      - .claude/hooks/*.sh
+    description: "Absolute path to the project root directory. Required by wm skill path resolution and hook scripts."
+    install_command: "# Add to ~/.zshrc or configure in .claude/settings.local.json env block:\n# CLAUDE_PROJECT_DIR=$(pwd)"
+    verify_command: "test -n \"$CLAUDE_PROJECT_DIR\""
+    example_value: "/Users/username/projects/my-project"
+    validation:
+      type: env_exists
+
+  - id: ENV-002
+    name: CLAUDE_SKILL_DIR
+    kind: env-var
+    priority: MEDIUM
+    hard: false
+    referenced_by:
+      - .claude/skills/wm/SKILL.md (path calculation)
+    description: "Absolute path to .claude/skills directory. Optional — wm infers from CLAUDE_PROJECT_DIR when absent."
+    install_command: "# Add to ~/.zshrc or configure in .claude/settings.local.json env block:\n# CLAUDE_SKILL_DIR=$(pwd)/.claude/skills"
+    verify_command: "test -n \"$CLAUDE_SKILL_DIR\""
+    example_value: "/Users/username/projects/my-project/.claude/skills"
+    fallback: "Derived from CLAUDE_PROJECT_DIR + /.claude/skills when not set"
+    validation:
+      type: env_exists
+
+# === Summary ===
+# CRITICAL (hard=true): 1 (CLAUDE_PROJECT_DIR)
+# MEDIUM (hard=false): 1 (CLAUDE_SKILL_DIR)
+# Total: 2 env-vars

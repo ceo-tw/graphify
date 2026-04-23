@@ -1,0 +1,8 @@
+[
+  {"query": "plan을 jira로 변환해줘", "should_trigger": true},
+  {"query": "jira 티켓 생성해줘", "should_trigger": true},
+  {"query": "계획서를 jira 이슈로 만들어줘", "should_trigger": true},
+  {"query": "plan to jira", "should_trigger": true},
+  {"query": "코드를 리팩토링해줘", "should_trigger": false},
+  {"query": "테스트를 실행해줘", "should_trigger": false}
+]

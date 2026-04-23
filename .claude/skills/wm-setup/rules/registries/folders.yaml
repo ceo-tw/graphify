@@ -1,0 +1,133 @@
+# Folders Registry
+# Single source of truth for required directory structure
+# To add a folder: Add new item with unique ID (FLD-XXX)
+
+version: "1.0"
+type: "folders"
+last_updated: "2026-01-27"
+
+items:
+  # === Root Level (CRITICAL - blocking) ===
+  - id: "FLD-001"
+    name: ".claude"
+    path: ".claude"
+    priority: "CRITICAL"
+    blocking: true
+    description: "Root Claude Code configuration directory"
+    validation:
+      type: "exists"
+
+  # === Primary Directories (HIGH) ===
+  - id: "FLD-002"
+    name: "skills"
+    path: ".claude/skills"
+    priority: "HIGH"
+    blocking: true
+    description: "Skills directory containing SKILL.md files"
+    validation:
+      type: "exists"
+
+  - id: "FLD-003"
+    name: "agents"
+    path: ".claude/agents"
+    priority: "HIGH"
+    blocking: true
+    description: "Agent definitions for Task tool"
+    validation:
+      type: "exists"
+
+  - id: "FLD-004"
+    name: "hooks"
+    path: ".claude/hooks"
+    priority: "HIGH"
+    blocking: true
+    description: "Hook scripts for lifecycle events"
+    validation:
+      type: "exists"
+
+  - id: "FLD-005"
+    name: "plans"
+    path: ".claude/plans"
+    priority: "HIGH"
+    blocking: false
+    description: "Plan files for planning workflow"
+    validation:
+      type: "exists"
+
+  # === Optional Directories (MEDIUM) ===
+  - id: "FLD-006"
+    name: "docs"
+    path: ".claude/docs"
+    priority: "MEDIUM"
+    blocking: false
+    description: "Documentation files (PRD, Architecture)"
+    validation:
+      type: "exists"
+
+  # === Skill Subdirectories ===
+  - id: "FLD-010"
+    name: "wm-setup skill"
+    path: ".claude/skills/wm-setup"
+    priority: "HIGH"
+    blocking: false
+    description: "wm-setup skill directory"
+    validation:
+      type: "exists"
+
+  - id: "FLD-011"
+    name: "wm skill"
+    path: ".claude/skills/wm"
+    priority: "CRITICAL"
+    blocking: false
+    description: "Workflow Manager skill directory"
+    validation:
+      type: "exists"
+
+  - id: "FLD-012"
+    name: "solve skill"
+    path: ".claude/skills/solve"
+    priority: "CRITICAL"
+    blocking: false
+    description: "Problem Solving skill directory"
+    validation:
+      type: "exists"
+
+  # === Plans Subdirectories ===
+  - id: "FLD-020"
+    name: "complete plans"
+    path: ".claude/plans/complete"
+    priority: "LOW"
+    blocking: false
+    description: "Archived completed plans"
+    validation:
+      type: "exists"
+
+  # === wm-specific Directories ===
+  - id: "FLD-021"
+    name: "graphify venv"
+    path: ".claude/graphify"
+    priority: "CRITICAL"
+    hard: true
+    blocking: false
+    description: "graphify Python virtualenv root (.venv) and config"
+    validation:
+      type: "exists"
+
+  - id: "FLD-022"
+    name: "architecture graph"
+    path: ".claude/architecture/graph"
+    priority: "CRITICAL"
+    hard: true
+    blocking: false
+    description: "Graphify build output: _global + 18 domain graph JSON files"
+    validation:
+      type: "exists"
+
+# === Summary ===
+# CRITICAL (blocking): 1 (.claude)
+# CRITICAL (hard, non-blocking): 2 (graphify, architecture/graph)
+# HIGH (blocking): 3 (skills, agents, hooks)
+# HIGH (non-blocking): 2 (plans, wm-setup)
+# CRITICAL skills: 2 (wm, solve)
+# LOW: 1 (complete plans)
+# Total folders: 12

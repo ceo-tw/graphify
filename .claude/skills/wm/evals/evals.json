@@ -1,0 +1,306 @@
+{
+  "skill_name": "wm",
+  "description": "wm 스킬 분기별 테스트 케이스. 타입 분류, 복잡도 결정, 실행 경로를 검증합니다.",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/wm 사용자 인증 기능을 추가해주세요. JWT 기반으로 로그인/로그아웃을 구현하고 미들웨어도 추가해야 합니다.",
+      "expected_output": "타입: NEW_DEVELOPMENT, 복잡도: Complex, 경로: Load Context -> design -> planner-task -> dev-executor(병렬) -> qa",
+      "expected_type": "NEW_DEVELOPMENT",
+      "expected_complexity": "Complex",
+      "expected_process_file": "rules/processes/development-process.md",
+      "files": [],
+      "assertions": [
+        {
+          "id": "type-classification",
+          "text": "Plan document correctly identifies type as NEW_DEVELOPMENT",
+          "type": "contains_any",
+          "values": ["NEW_DEVELOPMENT", "new_development", "New Development"]
+        },
+        {
+          "id": "section-0-exists",
+          "text": "Plan document contains Section 0 (Execution Process) with agent checkboxes",
+          "type": "contains_all",
+          "values": ["Execution Process", "design", "planner-task", "dev-executor", "qa"]
+        },
+        {
+          "id": "section-1-exists",
+          "text": "Plan document contains Section 1 (Problem Definition)",
+          "type": "contains_any",
+          "values": ["## 1.", "Problem Definition", "현재 상태", "문제 정의"]
+        },
+        {
+          "id": "section-2-exists",
+          "text": "Plan document contains Section 2 (Requirements) with checkboxes",
+          "type": "contains_all",
+          "values": ["## 2.", "- [ ]"]
+        },
+        {
+          "id": "agent-execution-log",
+          "text": "Plan document includes Agent Execution Log table",
+          "type": "contains_all",
+          "values": ["Agent Execution Log", "agentId", "Status"]
+        },
+        {
+          "id": "plan-mode-entry",
+          "text": "Skill enters Plan Mode before doing anything else",
+          "type": "tool_used",
+          "values": ["EnterPlanMode"]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "/wm 로그인 페이지의 오타를 수정해주세요. '로그이'을 '로그인'으로 변경",
+      "expected_output": "타입: BUG_FIX(Simple), 복잡도: Simple, 경로: 직접 실행 (solve skill)",
+      "expected_type": "BUG_FIX_SIMPLE",
+      "expected_complexity": "Simple",
+      "expected_process_file": "rules/processes/bug-fix-simple.md",
+      "files": [],
+      "assertions": [
+        {
+          "id": "simple-classification",
+          "text": "Correctly classified as Simple complexity (no full agent pipeline)",
+          "type": "contains_any",
+          "values": ["Simple", "simple", "BUG_FIX", "bug-fix-simple", "execution skip"]
+        },
+        {
+          "id": "no-heavy-pipeline",
+          "text": "Does NOT invoke the full design->planner-task pipeline for a trivial fix",
+          "type": "not_contains",
+          "values": ["design", "planner-task"]
+        },
+        {
+          "id": "plan-mode-entry",
+          "text": "Skill enters Plan Mode",
+          "type": "tool_used",
+          "values": ["EnterPlanMode"]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "/wm 현재 API 응답 시간을 분석하고 병목 지점을 찾아주세요",
+      "expected_output": "타입: INQUIRY, 복잡도: Simple, 경로: 직접 실행 (Explore agent로 분석 -> 보고)",
+      "expected_type": "INQUIRY",
+      "expected_complexity": "Simple",
+      "expected_process_file": "rules/processes/inquiry.md",
+      "files": [],
+      "assertions": [
+        {
+          "id": "inquiry-type",
+          "text": "Correctly classified as INQUIRY type",
+          "type": "contains_any",
+          "values": ["INQUIRY", "inquiry", "분석", "ANALYZE"]
+        },
+        {
+          "id": "simple-execution",
+          "text": "Uses simple execution path (no design/planner-task)",
+          "type": "contains_any",
+          "values": ["Simple", "simple", "execution skip", "Explore"]
+        },
+        {
+          "id": "plan-mode-entry",
+          "text": "Skill enters Plan Mode",
+          "type": "tool_used",
+          "values": ["EnterPlanMode"]
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "/wm 로그인 에러를 수정하고, 추가로 비밀번호 재설정 기능도 구현해주세요",
+      "expected_output": "타입: MULTI_INTENT, 복잡도: Complex, 경로: Load Context -> intent별 독립 파이프라인",
+      "expected_type": "MULTI_INTENT",
+      "expected_complexity": "Complex",
+      "expected_process_file": "rules/processes/multi-intent.md (composite)",
+      "files": [],
+      "assertions": [
+        {
+          "id": "multi-intent-detection",
+          "text": "Correctly detects MULTI_INTENT (two separate intents)",
+          "type": "contains_any",
+          "values": ["MULTI_INTENT", "multi-intent", "multi_intent", "복합", "2개 의도"]
+        },
+        {
+          "id": "both-intents-covered",
+          "text": "Plan addresses both the bug fix AND the new feature",
+          "type": "contains_all",
+          "values": ["로그인", "비밀번호"]
+        },
+        {
+          "id": "plan-mode-entry",
+          "text": "Skill enters Plan Mode",
+          "type": "tool_used",
+          "values": ["EnterPlanMode"]
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/wm AGENTS.md 파일들의 상태 헤더를 일괄 업데이트해주세요. 총 5개 파일입니다.",
+      "expected_output": "타입: DOCUMENTATION_BATCH, 복잡도: Simple, 경로: 직접 실행 (Task tool + 병렬 Agent)",
+      "expected_type": "DOCUMENTATION_BATCH",
+      "expected_complexity": "Simple",
+      "expected_process_file": "rules/processes/documentation.md",
+      "files": [],
+      "assertions": [
+        {
+          "id": "documentation-type",
+          "text": "Classified as DOCUMENTATION or DOCUMENTATION_BATCH",
+          "type": "contains_any",
+          "values": ["DOCUMENTATION", "documentation", "DOCUMENTATION_BATCH"]
+        },
+        {
+          "id": "simple-path",
+          "text": "Uses simple execution path",
+          "type": "contains_any",
+          "values": ["Simple", "simple", "execution skip"]
+        },
+        {
+          "id": "plan-mode-entry",
+          "text": "Skill enters Plan Mode",
+          "type": "tool_used",
+          "values": ["EnterPlanMode"]
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "/wm Playwright E2E 테스트에서 로그인 플로우가 실패합니다. 브라우저에서 확인하고 수정해주세요.",
+      "expected_output": "타입: BUG_FIX(E2E), 복잡도: Complex, 경로: Load Context -> E2E 전용 에이전트 체인",
+      "expected_type": "BUG_FIX_E2E",
+      "expected_complexity": "Complex",
+      "expected_process_file": "rules/processes/bug-fix-e2e.md",
+      "files": [],
+      "assertions": [
+        {
+          "id": "e2e-bug-type",
+          "text": "Correctly identifies as BUG_FIX E2E type",
+          "type": "contains_any",
+          "values": ["BUG_FIX", "E2E", "e2e", "bug-fix-e2e", "Playwright"]
+        },
+        {
+          "id": "complex-pipeline",
+          "text": "Uses Complex execution path with E2E agents",
+          "type": "contains_any",
+          "values": ["Complex", "playwright-test", "bug-fix-e2e", "Execution Process"]
+        },
+        {
+          "id": "plan-mode-entry",
+          "text": "Skill enters Plan Mode",
+          "type": "tool_used",
+          "values": ["EnterPlanMode"]
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "a1-url-symbol-bearing-request",
+      "prompt": "/wm /portal/agents/[id] 페이지에서 재시작 버튼 클릭 시 500 에러가 납니다. 원인을 찾아 계획을 세워 주세요.",
+      "expected_output": "Plan Mode 진입 후 SKILL.md Section 1 A-1 rule 에 따라 graphify resolve 를 Explore 이전에 사용하거나 계획에 명시. §12.3c Hono inline handler fallback 언급 또는 인지.",
+      "expected_type": "BUG_FIX_COMPLEX",
+      "expected_complexity": "Complex",
+      "expected_process_file": "rules/processes/bug-fix-complex.md",
+      "files": [],
+      "assertions": [
+        {
+          "id": "a1-graphify-resolve-preferred",
+          "text": "Plan or approach references graphify resolve / callees / _global graph for URL lookup",
+          "type": "contains_any",
+          "values": ["graphify resolve", "graphify callees", "_global", "A-1", "url", "URL"]
+        },
+        {
+          "id": "plan-mode-entry",
+          "text": "Skill enters Plan Mode",
+          "type": "tool_used",
+          "values": ["EnterPlanMode"]
+        },
+        {
+          "id": "bug-fix-complex-classification",
+          "text": "Classified as BUG_FIX Complex (cross-file investigation + unclear root cause)",
+          "type": "contains_any",
+          "values": ["BUG_FIX", "bug-fix-complex", "Complex", "root-cause"]
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "a2-modification-triggers-navigator",
+      "prompt": "/wm organization service 의 soft-delete 로직을 수정해 주세요. tenant_id 필터 누락 여부, cascade 영향을 반영한 계획이 필요합니다.",
+      "expected_output": "MODIFICATION 분류. Section 0 템플릿에 A-2 knowledge-graph-navigator preflight 의도 포함. tenant_id security-sensitive 이므로 Review Gate 에서 B-1 matrix-diff rbac/contract 적용 의도 명시.",
+      "expected_type": "MODIFICATION",
+      "expected_complexity": "Complex",
+      "expected_process_file": "rules/processes/development-process.md",
+      "files": [],
+      "assertions": [
+        {
+          "id": "modification-type",
+          "text": "Classified as MODIFICATION",
+          "type": "contains_any",
+          "values": ["MODIFICATION", "modification", "수정"]
+        },
+        {
+          "id": "a2-navigator-preflight",
+          "text": "Plan Section 0 or approach references knowledge-graph-navigator or A-2 preflight",
+          "type": "contains_any",
+          "values": ["knowledge-graph-navigator", "navigator", "A-2", "blast-radius", "blast_radius"]
+        },
+        {
+          "id": "b1-security-matrix-diff",
+          "text": "Security-sensitive change triggers B-1 matrix-diff (rbac/contract) awareness",
+          "type": "contains_any",
+          "values": ["matrix-diff", "rbac", "contract", "B-1", "security-reviewer", "tenant_id"]
+        },
+        {
+          "id": "plan-mode-entry",
+          "text": "Skill enters Plan Mode",
+          "type": "tool_used",
+          "values": ["EnterPlanMode"]
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "gap5a5b-cross-layer-bug-graphify-hints",
+      "prompt": "/wm admin-api billing-client.ts 의 PolarProductLookupResult 타입에 prices[] 필드가 누락되어 프론트에 빈 데이터가 보이는 버그를 해결해 주세요. BUG-001 과 유사한 cross-layer drift 입니다.",
+      "expected_output": "BUG_FIX Complex 분류. Section 0 에 GAP-5a root-cause-finder blast + GAP-5b bug-fixer callers + B-1 contract drift 의도 포함. BUG-001 memory 참조 가능.",
+      "expected_type": "BUG_FIX_COMPLEX",
+      "expected_complexity": "Complex",
+      "expected_process_file": "rules/processes/bug-fix-complex.md",
+      "files": [],
+      "assertions": [
+        {
+          "id": "bug-fix-complex-classification",
+          "text": "Classified as BUG_FIX Complex",
+          "type": "contains_any",
+          "values": ["BUG_FIX", "bug-fix-complex", "Complex"]
+        },
+        {
+          "id": "gap5a-blast-hint",
+          "text": "root-cause-finder 단계에서 graphify blast 선행 힌트 또는 전파 범위 분석 언급",
+          "type": "contains_any",
+          "values": ["blast", "GAP-5a", "root-cause-finder", "전파", "propagation"]
+        },
+        {
+          "id": "gap5b-callers-hint",
+          "text": "bug-fixer 단계에서 graphify callers 회귀 테스트 경계 언급",
+          "type": "contains_any",
+          "values": ["callers", "GAP-5b", "회귀 테스트", "regression"]
+        },
+        {
+          "id": "b1-contract-drift-awareness",
+          "text": "Cross-layer drift (contract) 인지. BUG-001 재발 방지 언급 가능",
+          "type": "contains_any",
+          "values": ["contract", "B-1", "BUG-001", "matrix-diff", "Polar", "drift"]
+        },
+        {
+          "id": "plan-mode-entry",
+          "text": "Skill enters Plan Mode",
+          "type": "tool_used",
+          "values": ["EnterPlanMode"]
+        }
+      ]
+    }
+  ]
+}

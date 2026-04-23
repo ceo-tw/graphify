@@ -16,9 +16,46 @@ build/
 graphify-out/
 .graphify_*.json
 .graphify_python
-.claude/
-skills/
+/skills/
 docs/superpowers/
 .vscode/
 openspec/
 uv.lock
+
+# ---- .claude/ : selectively tracked ----
+# Default: ignore everything inside .claude/
+.claude/**
+
+# Re-include config tree (tracked in git)
+!.claude/
+!.claude/agents/
+!.claude/agents/**
+!.claude/skills/
+!.claude/skills/**
+!.claude/hooks/
+!.claude/hooks/**
+!.claude/rules/
+!.claude/rules/**
+!.claude/architecture/
+!.claude/architecture/**
+!.claude/scripts/
+!.claude/scripts/**
+!.claude/settings.json
+
+# Re-ignore transient / generated / user-specific under tracked dirs
+.claude/settings.local.json
+.claude/plans/
+.claude/docs/
+.claude/memory/
+.claude/graphify/
+.claude/hooks/*.log
+.claude/hooks/.gateguard-state/
+.claude/scripts/__pycache__/
+.claude/skills/**/__pycache__/
+.claude/skills/**/node_modules/
+.claude/skills/**/.venv/
+.claude/skills/**/out/
+.claude/skills/**/logs/
+.claude/skills/**/.cache/
+.claude/skills/wm-workspace/
+.claude/architecture/**/graphify-out/
