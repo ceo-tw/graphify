@@ -214,11 +214,11 @@ CATEGORY: binaries
 | BIN-001 | graphify       | FAIL   | HARD     | python3.12 -m venv .claude/graphify/...  | wm/SKILL.md, review-orc.md  |
 | BIN-002 | jq             | PASS   | HARD     | brew install jq                          | validator scripts, hooks     |
 | BIN-003 | python3.12     | PASS   | HARD     | brew install python@3.12                 | BIN-001                      |
-| BIN-004 | kubectl        | PASS   | HARD     | brew install kubectl                     | deploy-orbstack/SKILL.md     |
-| BIN-005 | docker         | PASS   | HARD     | brew install --cask docker               | Dockerfiles                  |
+| BIN-004 | kubectl        | SKIP   | —        | (inactive for graphify)                  | (deprecated)                 |
+| BIN-005 | docker         | SKIP   | —        | (inactive for graphify)                  | (deprecated)                 |
 | BIN-006 | gh             | WARN   | SOFT     | brew install gh                          | git-workflow/SKILL.md        |
-| BIN-007 | node           | PASS   | HARD     | brew install node@22                     | src/admin-api/, scripts/     |
-| BIN-008 | npm            | PASS   | HARD     | brew install node@22                     | package.json workspaces      |
+| BIN-007 | node           | SKIP   | —        | (inactive for graphify; pure Python)     | (deprecated)                 |
+| BIN-008 | npm            | SKIP   | —        | (inactive for graphify; pure Python)     | (deprecated)                 |
 
 CATEGORY: graph-data
 | ID       | Name                    | Status | Severity | Install Command (shortened)              | Referenced By               |

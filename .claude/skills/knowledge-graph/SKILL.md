@@ -1,7 +1,7 @@
 ---
 name: knowledge-graph
 type: workflow
-description: "Graphify CLI wrapper — 18개 물리 도메인 그래프(legacy v0.4.x, undirected) + _global v0.5.2 directed overlay. URL 중심 질의(resolve/callers/callees/blast)는 _global, 도메인 요약·god-node는 18 도메인 그래프. 재구현 금지 — Graphify·scripts/graphify/*.ts의 얇은 래퍼."
+description: "Graphify CLI wrapper — 대상 코드베이스에 빌드된 `_global` directed overlay (v0.5.x) + 선택적 도메인 서브그래프. URL 중심 질의(resolve/callers/callees/blast)는 `_global` 사용. 도메인 ontology 는 호출 프로젝트의 `.claude/manifests/` 구성에 따른다. 재구현 금지 — graphify CLI 의 얇은 래퍼."
 argument-hint: "[build|update|domain|matrix|query|path|explain|validate|hotspots|coverage|diff|mcp-serve|resolve|callers|callees|blast|init-ignore] [args...]"
 allowed-tools: [Bash, Read, Glob, Grep]
 user-invocable: true
@@ -9,7 +9,9 @@ user-invocable: true
 
 # /knowledge-graph
 
-openclaw-cloud 3차원 카테고라이즈(18 물리 그래프 · 14 도메인 · 13 Ontology) + `_global` URL/API overlay 기반 지식 그래프 관리 도구.
+graphify 기반 지식 그래프 관리 도구. 대상 코드베이스에 빌드된 `_global` (directed overlay, v0.5.x) 및 선택적 도메인 서브그래프를 활용해 구조 분석과 쿼리를 제공한다.
+
+> **Scope note**: 구체적 도메인 · ontology · 카테고라이즈 체계 (예: 18 물리 그래프 · 14 도메인 · 13 Ontology) 는 **호출하는 프로젝트의** `.claude/manifests/` 및 `graph-splits.yml` 에 따라 달라진다. graphify 자체 (이 저장소) 에는 해당 매니페스트가 없어 self-review 시 일부 쿼리 경로는 비활성화된다.
 
 ## 두 세계 (v0.4.21 legacy + v0.5.2 global)
 
@@ -273,7 +275,7 @@ $CLAUDE_PROJECT_DIR/.claude/graphify/.venv/bin/graphify callers <func-id> \
 - 18 도메인 그래프 출력 (legacy v0.4.x, undirected): `.claude/architecture/graph/{name}/graphify-out/`
 - `_global` overlay (v0.5.2, directed): `.claude/architecture/graph/_global/graphify-out/`
 - `_global` 라벨 시드: `.claude/architecture/graph/_global/labels.json` (운영자 큐레이션)
-- HTTP 래퍼 override: **openclaw에서는 불필요** (v0.5.2 자동 감지로 충분; 2026-04-19 Case A 확정 후 `src/.graphify/` 삭제됨). 타 프로젝트에서 필요 시 `<project-root>/.graphify/http-wrappers.json` 에 등록. README §8.3 참조.
+- HTTP 래퍼 override: 대부분의 프로젝트에서는 v0.5.x 자동 감지로 충분. 필요 시 `<project-root>/.graphify/http-wrappers.json` 에 등록. README §8.3 참조.
 - build-summary.json: 마지막 빌드 결과 요약
 
 - `.claude/architecture/graph/build-summary.json`이 없으면 → 먼저 `/knowledge-graph build` 실행
@@ -304,4 +306,4 @@ $CLAUDE_PROJECT_DIR/.claude/graphify/.venv/bin/graphify callers <func-id> \
 - Manifest: `.claude/manifests/{domain-matrix.yml, graph-splits.yml, glossary.yml, api-catalog.yml, rbac-matrix.yml, env-catalog.yml, contracts/billing.yml, nats-topics.yml, providers.yml, jobs.yml, adrs/, runbooks/}`
 - 스크립트: `scripts/graphify/{resolve-domain-matrix.ts, build-all-graphs.ts, graphify-matrix-diff.ts}`
 - Graphify: `/Users/tw.kim/Documents/AGA/test/graphify` **v0.5.2** (editable install) · fork `ceo-tw/graphify` · `GETTING_STARTED.md`
-- v0.5.2 변경: v0.5.1 §12.1 JSONC 파서 버그 + §12.3b namespace import 2건 **해결** (README §A Resolution Log). openclaw `calls_http` 11→241 복구 확인. 잔존 제약: §12.2 Hono 팩토리 mount prefix 미결합, §12.3c Hono anonymous inline handler 내부 호출 caller 미검출.
+- v0.5.2 변경: v0.5.1 §12.1 JSONC 파서 버그 + §12.3b namespace import 2건 **해결** (README §A Resolution Log). 잔존 제약: §12.2 Hono 팩토리 mount prefix 미결합, §12.3c Hono anonymous inline handler 내부 호출 caller 미검출 — 이는 graphify 가 분석하는 *대상 코드베이스* 의 Hono 라우터에 적용되는 제약이며, graphify 자체 (Python) 에는 해당되지 않는다.
