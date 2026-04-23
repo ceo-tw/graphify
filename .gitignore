@@ -22,6 +22,11 @@ docs/superpowers/
 openspec/
 uv.lock
 
+# External tool artifacts (opencode, claude-state)
+.claude-state/
+.opencode/
+opencode.json
+
 # ---- .claude/ : selectively tracked ----
 # Default: ignore everything inside .claude/
 .claude/**
