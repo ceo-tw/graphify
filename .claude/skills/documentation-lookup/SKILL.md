@@ -16,59 +16,58 @@ Uses the Context7 MCP server to fetch live documentation. Two-step process:
 
 Maximum 3 Context7 calls per question to avoid excessive lookups.
 
-## Supported Libraries
+## Supported Libraries (graphify)
 
 | Library | Version | Use Case |
 |---------|---------|----------|
-| Hono | 4.x | Backend API framework (admin-api, billing-api) |
-| Next.js | 15.x | Frontend framework with App Router (admin-portal) |
-| React | 19.x | UI library |
-| shadcn/ui | latest | UI component library (Radix UI + Tailwind CSS) |
-| Tailwind CSS | 4.x | Utility-first CSS |
-| postgres.js | latest | PostgreSQL driver |
-| ioredis | latest | Redis client |
-| NATS | latest | JetStream messaging |
-| Zod | latest | Schema validation |
-| react-hook-form | latest | Form management |
-| @tanstack/react-query | latest | Server state management |
-| Zustand | latest | Client state management |
-| @polar-sh/sdk | latest | Global billing SDK |
-| Playwright | latest | E2E testing |
-| Vitest | latest | Unit/integration testing (admin-portal) |
+| networkx | latest | Graph data structure (core) |
+| tree-sitter | latest | Multi-language AST parsing (25+ grammars) |
+| graspologic | latest | Leiden community detection (Python <3.13) |
+| faster-whisper | optional | Audio/video transcription (optional extra) |
+| pypdf | optional | PDF ingestion (optional extra) |
+| neo4j | optional | Graph export (optional extra) |
+| mcp | optional | MCP stdio server (optional extra) |
+| pytest | latest | Test framework |
+| ruff | latest | Python linter + formatter |
+
+Target codebases analyzed by graphify may use any language/framework. When
+graphify itself needs documentation for a target codebase's library, resolve
+that library via Context7 directly — graphify does not constrain the target's
+tech stack.
 
 ## Usage Pattern
 
 ```python
 # Step 1: Resolve the library
-result = mcp__context7__resolve-library-id(libraryName="hono")
-# Returns: library ID for Hono
+result = mcp__context7__resolve-library-id(libraryName="networkx")
+# Returns: library ID for NetworkX
 
 # Step 2: Query specific documentation
 docs = mcp__context7__query-docs(
     libraryId=result.id,
-    query="how to use zod-validator middleware"
+    query="directed graph adjacency iteration"
 )
 # Returns: relevant documentation sections
 ```
 
 ## Examples
 
-### Looking up Hono middleware patterns
+### Looking up NetworkX DiGraph operations
 ```python
-lib = mcp__context7__resolve-library-id(libraryName="hono")
-docs = mcp__context7__query-docs(libraryId=lib.id, query="zod validator middleware")
+lib = mcp__context7__resolve-library-id(libraryName="networkx")
+docs = mcp__context7__query-docs(libraryId=lib.id, query="DiGraph successors predecessors")
 ```
 
-### Looking up Next.js App Router server actions
+### Looking up tree-sitter language bindings
 ```python
-lib = mcp__context7__resolve-library-id(libraryName="next.js")
-docs = mcp__context7__query-docs(libraryId=lib.id, query="server actions app router")
+lib = mcp__context7__resolve-library-id(libraryName="tree-sitter")
+docs = mcp__context7__query-docs(libraryId=lib.id, query="python binding query pattern")
 ```
 
-### Looking up shadcn/ui component usage
+### Looking up graspologic Leiden clustering
 ```python
-lib = mcp__context7__resolve-library-id(libraryName="shadcn-ui")
-docs = mcp__context7__query-docs(libraryId=lib.id, query="data table with pagination")
+lib = mcp__context7__resolve-library-id(libraryName="graspologic")
+docs = mcp__context7__query-docs(libraryId=lib.id, query="leiden community detection seed")
 ```
 
 ## Rules

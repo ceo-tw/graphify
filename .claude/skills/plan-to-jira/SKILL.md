@@ -138,17 +138,22 @@ Jira 이슈 생성 정보:
 
 계획서 내용(파일 경로, 서비스 언급)에서 관련 서비스를 자동 감지하여 레이블을 결정한다.
 
-**레이블 목록**: `admin-portal`, `billing-api`, `admin-api`, `orbstack`, `env`
+**레이블 목록 (graphify)**: `graphify-core`, `cli`, `ingest`, `graph-build`, `mcp`, `docs`, `tests`, `config`
 
 **감지 규칙:**
 
 | 레이블 | 감지 조건 |
 |--------|-----------|
-| `admin-portal` | `src/admin-portal/` 경로 언급, 또는 "portal", "프론트엔드", "UI", "컴포넌트", "i18n" 등 키워드 |
-| `admin-api` | `src/admin-api/` 경로 언급, 또는 "admin-api", "백엔드 API" 등 키워드 |
-| `billing-api` | `src/billing-api/` 경로 언급, 또는 "billing", "Paddle", "결제" 등 키워드 |
-| `orbstack` | `orbstack/` 경로 언급, 또는 "OrbStack", "로컬 K8s", "E2E 검증" 등 키워드 |
-| `env` | `.env` 파일 변경 언급, 또는 "환경변수", "시크릿", "configmap" 등 키워드 |
+| `graphify-core` | `graphify/` 하위 모듈 수정 (extract / build / analyze / cluster / cache / routes / http_calls) |
+| `cli` | `graphify/__main__.py`, `graphify/cli_*.py`, 신규 서브커맨드, `--out-dir` / `--cache-dir` 플래그 변경 |
+| `ingest` | `graphify/ingest.py`, `graphify/transcribe.py`, URL fetching, Whisper/PDF/OCR 관련 |
+| `graph-build` | `graphify/build.py`, `graphify/cluster.py`, `graphify/export.py`, edge-tag 변경 |
+| `mcp` | `graphify/serve.py`, MCP stdio JSON-RPC 변경 |
+| `docs` | `README.md`, `CHANGELOG.md`, `ARCHITECTURE.md`, `GETTING_STARTED.md`, `.claude/rules/`, `.claude/plans/` |
+| `tests` | `tests/` 하위 변경, fixture 추가 |
+| `config` | `pyproject.toml`, `.graphifyignore`, `.gitignore`, `.claude/settings*.json` |
+
+> 프로젝트가 graphify 가 아닌 다른 저장소에서 이 skill 을 사용한다면 위 taxonomy 를 해당 프로젝트의 모듈 구조로 교체하라. skill 은 taxonomy 자체를 동적으로 구성하지 않는다.
 
 **적용 규칙:**
 1. 계획서 전체(Section 1~3)에서 감지. 하나의 계획서가 여러 서비스에 걸칠 수 있음.

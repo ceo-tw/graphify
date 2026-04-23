@@ -278,89 +278,126 @@ else:
         verify_domain_rules(domain, worktree_path)
 
 def verify_domain_rules(domain: str, worktree_path: str) -> dict:
-    """Domain-specific rule verification"""
-    if domain == "frontend":
-        return verify_frontend_rules(worktree_path)
-    elif domain == "backend":
-        return verify_backend_rules(worktree_path)
-    elif domain == "database":
-        return verify_database_rules(worktree_path)
+    """Domain-specific rule verification (graphify-scoped).
+
+    graphify is a pure-Python CLI + library. Domains map to the internal module
+    taxonomy (pipeline, ingest, cli, mcp, packaging), NOT to frontend/backend/
+    database/client. Legacy openclaw-style domain verifiers have been removed.
+    """
+    if domain in ("pipeline", "graphify-core", "extract", "build", "analyze"):
+        return verify_determinism_rules(worktree_path)
+    elif domain in ("ingest", "transcribe", "mcp"):
+        return verify_ingest_rules(worktree_path)
+    elif domain in ("cli", "cache"):
+        return verify_cli_rules(worktree_path)
+    elif domain == "style":
+        return verify_python_style(worktree_path)
     elif domain == "client":
-        return verify_client_rules(worktree_path)
+        # Shell scripts under .claude/hooks/ or scripts/
+        return verify_shell_rules(worktree_path)
     else:
         print(f"ℹ️ No specific verification for domain: {domain}")
         return {"domain": domain, "violations": []}
 ```
 
-### Domain-Specific Verification Functions
+### Domain-Specific Verification Functions (graphify)
 
 ```python
-def verify_backend_rules(worktree_path: str) -> dict:
-    """Backend domain rule verification"""
+DETERMINISTIC_PIPELINE = [
+    "graphify/extract.py",
+    "graphify/build.py",
+    "graphify/routes.py",
+    "graphify/http_calls.py",
+    "graphify/analyze.py",
+    "graphify/cli_graph_query.py",
+]
+
+OPTIONAL_EXTRAS = ("faster_whisper", "pypdf", "neo4j", "mcp")
+
+def verify_python_style(worktree_path: str) -> dict:
+    """Run ruff on the graphify package + tests."""
     violations = []
-
-    # Check Zod schema usage in API routes
-    api_files = Glob(pattern="**/routes/**/*.ts", path=f"{worktree_path}/src")
-    for file in api_files:
-        content = Read(file)
-        if "safeParse" not in content and "parse" not in content:
-            violations.append(f"{file}: Missing Zod validation")
-
-    # Check structured logging
-    service_files = Glob(pattern="**/services/**/*.ts", path=f"{worktree_path}/src")
-    # ... additional checks
-
-    return {"domain": "backend", "violations": violations}
-
-def verify_database_rules(worktree_path: str) -> dict:
-    """Database domain rule verification (integrated)"""
-    violations = []
-
-    # Check idempotent DDL
-    sql_files = Glob(pattern="**/*.sql", path=f"{worktree_path}/src")
-    for file in sql_files:
-        content = Read(file)
-        if "CREATE TABLE" in content and "IF NOT EXISTS" not in content:
-            violations.append(f"{file}: Missing IF NOT EXISTS")
-        if "CREATE VIEW" in content and "IF NOT EXISTS" not in content:
-            violations.append(f"{file}: Missing IF NOT EXISTS for VIEW")
-
-    # Tenant isolation: find queries missing tenant_id
-    ts_files = Glob(pattern="**/*.ts", path=f"{worktree_path}/src")
-    for file in ts_files:
-        content = Read(file)
-        if "sql`" in content:
-            # Check SELECT/UPDATE/DELETE without tenant_id
-            lines = content.split("\n")
-            for i, line in enumerate(lines):
-                if ("SELECT" in line or "UPDATE" in line or "DELETE" in line) and "tenant_id" not in line:
-                    # Exclude auth queries and system tables
-                    if "auth" not in file and "migration" not in file:
-                        violations.append(f"{file}:{i+1}: SQL query may be missing tenant_id WHERE clause")
-
-    # N+1 detection: for/forEach loops containing sql tagged templates
-    result = Bash(command=f"grep -rn 'for.*of\\|forEach' {worktree_path}/src --include='*.ts' -A 5 | grep -l 'sql`' || true")
+    result = Bash(command=f"cd {worktree_path} && ruff check graphify/ tests/ 2>&1 || true")
     if result.stdout.strip():
-        violations.append(f"Potential N+1 queries detected: {result.stdout.strip()}")
+        violations.append(f"ruff findings:\n{result.stdout}")
+    return {"domain": "style", "violations": violations}
 
-    return {"domain": "database", "violations": violations}
+def verify_determinism_rules(worktree_path: str) -> dict:
+    """Guard the deterministic pipeline — no wall-clock / random without seed."""
+    violations = []
+    banned_pattern = r"\brandom\.|\btime\.time\(|\bdatetime\.now\(|\buuid\.uuid4\("
+    for rel in DETERMINISTIC_PIPELINE:
+        result = Bash(command=f"grep -nE '{banned_pattern}' {worktree_path}/{rel} 2>/dev/null || true")
+        if result.stdout.strip():
+            violations.append(f"{rel}: non-deterministic call detected\n{result.stdout}")
 
-def verify_client_rules(worktree_path: str) -> dict:
-    """Client domain rule verification"""
+    # eval/exec on analyzed content — absolute prohibition
+    eval_pattern = r"\beval\(|\bexec\("
+    result = Bash(command=f"grep -rnE '{eval_pattern}' {worktree_path}/graphify/ 2>/dev/null || true")
+    if result.stdout.strip():
+        violations.append(f"graphify/: eval/exec found (forbidden)\n{result.stdout}")
+
+    return {"domain": "pipeline", "violations": violations}
+
+def verify_ingest_rules(worktree_path: str) -> dict:
+    """Ingest / transcribe / MCP: optional-import gating + URL-fetch hygiene."""
+    violations = []
+    for extra in OPTIONAL_EXTRAS:
+        # Any import of an optional extra must be guarded by try/ImportError
+        result = Bash(command=f"grep -rn 'import {extra}\\|from {extra}' {worktree_path}/graphify/ 2>/dev/null || true")
+        if not result.stdout.strip():
+            continue
+        files = sorted(set(line.split(":", 1)[0] for line in result.stdout.strip().splitlines()))
+        for file in files:
+            content = Read(file)
+            if "ImportError" not in content and "ModuleNotFoundError" not in content:
+                violations.append(f"{file}: optional extra '{extra}' imported without try/ImportError guard")
+
+    # Whisper must not appear in the deterministic pipeline
+    for rel in DETERMINISTIC_PIPELINE:
+        result = Bash(command=f"grep -n 'faster_whisper' {worktree_path}/{rel} 2>/dev/null || true")
+        if result.stdout.strip():
+            violations.append(f"{rel}: faster_whisper in deterministic pipeline (must be opt-in only)")
+
+    return {"domain": "ingest", "violations": violations}
+
+def verify_cli_rules(worktree_path: str) -> dict:
+    """CLI / cache: --out-dir / --cache-dir semantics + edge-tag vocabulary."""
     violations = []
 
-    # Check ShellCheck compliance
-    shell_files = Glob(pattern="*.sh", path=f"{worktree_path}/client/scripts")
-    result = Bash(command=f"shellcheck {' '.join(shell_files)} 2>&1 || true")
-    if "error" in result.stdout.lower():
-        violations.append("ShellCheck errors found")
+    # print() in library modules (outside __main__ / cli_*) is a MEDIUM smell
+    result = Bash(command=f"grep -rn '^[[:space:]]*print(' {worktree_path}/graphify/ --include='*.py' 2>/dev/null | grep -vE 'graphify/(__main__|cli_[^/]+)\\.py' || true")
+    if result.stdout.strip():
+        violations.append(f"print() in library modules (use logging):\n{result.stdout}")
 
-    # Check strict mode
-    for file in shell_files:
-        content = Read(file)
-        if "set -euo pipefail" not in content:
-            violations.append(f"{file}: Missing strict mode (set -euo pipefail)")
+    # Edge-tag vocabulary must remain {EXTRACTED, INFERRED, AMBIGUOUS}
+    result = Bash(command=f"grep -rhoE '\"(EXTRACTED|INFERRED|AMBIGUOUS|[A-Z_]{{5,}})\"' {worktree_path}/graphify/ --include='*.py' 2>/dev/null | sort -u || true")
+    tags = {t.strip('\"') for t in result.stdout.strip().splitlines()} if result.stdout else set()
+    unknown = tags - {"EXTRACTED", "INFERRED", "AMBIGUOUS"}
+    # Filter obvious false positives (long SCREAMING_SNAKE_CASE not used as edge tag)
+    # — the rule's purpose is to flag NEW tag-like literals; reviewer decides.
+    suspects = [t for t in unknown if len(t) <= 15]
+    if suspects:
+        violations.append(f"Potential new edge-tag literals (verify CHANGELOG entry): {suspects}")
 
+    return {"domain": "cli", "violations": violations}
+
+def verify_shell_rules(worktree_path: str) -> dict:
+    """Shell scripts under .claude/hooks/ and scripts/ must be strict-mode + ShellCheck clean."""
+    violations = []
+    for search_dir in (".claude/hooks", "scripts", ".claude/scripts"):
+        full = f"{worktree_path}/{search_dir}"
+        shell_files = Glob(pattern="*.sh", path=full) or []
+        if not shell_files:
+            continue
+        for file in shell_files:
+            content = Read(file)
+            if "set -euo pipefail" not in content:
+                violations.append(f"{file}: missing 'set -euo pipefail'")
+        if shell_files:
+            result = Bash(command=f"shellcheck {' '.join(shell_files)} 2>&1 || true")
+            if "error" in result.stdout.lower():
+                violations.append(f"{search_dir}: ShellCheck errors\n{result.stdout}")
     return {"domain": "client", "violations": violations}
 ```
 

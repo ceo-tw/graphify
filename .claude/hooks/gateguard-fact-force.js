@@ -4,14 +4,15 @@
  *
  * Forces agents to investigate before editing files or running commands.
  * Instead of asking "are you sure?", demands concrete facts:
- * importers, public API, data schemas, and tenant isolation impact.
+ * importers, public API, data schemas, and determinism-pipeline impact.
  *
  * Gates:
- *   - Edit/Write: list importers, affected API, verify tenant impact, quote instruction
+ *   - Edit/Write: list importers, affected API, verify pipeline invariants, quote instruction
  *   - Bash (destructive): list targets, rollback plan, quote instruction
  *   - Bash (routine): quote current instruction (once per session)
  *
- * Adapted from ECC GateGuard for openclaw-cloud multi-tenant architecture.
+ * Adapted from ECC GateGuard for graphify (Python CLI + library).
+ * Gates editing of the deterministic pipeline surface and destructive bash.
  */
 
 'use strict';
@@ -31,8 +32,11 @@ const ROUTINE_BASH_SESSION_KEY = '__bash_session__';
 
 const DESTRUCTIVE_BASH = /\b(rm\s+-rf|git\s+reset\s+--hard|git\s+checkout\s+--|git\s+clean\s+-f|drop\s+table|delete\s+from|truncate|git\s+push\s+--force|dd\s+if=)\b/i;
 
-// Only gate Edit/Write for sensitive files (auth, payment, billing, middleware, tenant, jwt, session)
-const SENSITIVE_PATHS = /\/(auth|payment|billing|middleware|tenant|jwt|session)\//i;
+// Only gate Edit/Write for sensitive graphify files:
+//   - the deterministic pipeline (extract / build / routes / http_calls / analyze / cli_graph_query / cache)
+//   - security boundary modules (security / ingest / transcribe / serve / hooks / detect)
+//   - packaging surface (pyproject.toml at repo root)
+const SENSITIVE_PATHS = /graphify\/(extract|build|routes|http_calls|analyze|cli_graph_query|cache|security|ingest|transcribe|serve|hooks|detect)\.py$|(^|\/)pyproject\.toml$/i;
 
 // --- State management ---
 
@@ -104,7 +108,7 @@ function sanitizePath(filePath) {
   return filePath.replace(/[\x00-\x1f\x7f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, ' ').trim().slice(0, 500);
 }
 
-// --- Gate messages (openclaw-cloud customized) ---
+// --- Gate messages (graphify customized) ---
 
 function editGateMsg(filePath) {
   const safe = sanitizePath(filePath);
@@ -113,10 +117,10 @@ function editGateMsg(filePath) {
     '',
     `Before editing ${safe}, present these facts:`,
     '',
-    '1. List ALL files that import/require this file (use Grep)',
+    '1. List ALL files that import this module (use Grep on `from graphify.<mod>`/`import graphify.<mod>`)',
     '2. List the public functions/classes affected by this change',
-    '3. If this file reads/writes data, show field names and structure',
-    '4. Does this change affect tenant_id isolation? (multi-tenant check)',
+    '3. If this module is on the deterministic pipeline, confirm no wall-clock / random / eval is introduced',
+    '4. If edge tags are touched, confirm the vocabulary stays {EXTRACTED, INFERRED, AMBIGUOUS} or CHANGELOG updated',
     '5. Quote the user\'s current instruction verbatim',
     '',
     'Present the facts, then retry the same operation.'
@@ -130,9 +134,9 @@ function writeGateMsg(filePath) {
     '',
     `Before creating ${safe}, present these facts:`,
     '',
-    '1. Name the file(s) and line(s) that will call this new file',
-    '2. Confirm no existing file serves the same purpose (use Glob)',
-    '3. If this file handles data, does it include tenant_id filtering?',
+    '1. Name the file(s) and line(s) that will call this new module',
+    '2. Confirm no existing graphify module serves the same purpose (use Glob on graphify/*.py)',
+    '3. If this module uses optional extras (faster-whisper / pypdf / neo4j / mcp), is the import gated behind try/ImportError?',
     '4. Quote the user\'s current instruction verbatim',
     '',
     'Present the facts, then retry the same operation.'
