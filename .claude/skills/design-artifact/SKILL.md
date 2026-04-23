@@ -98,7 +98,7 @@ else
    - 슬라이드 덱: `<deck-stage>` 존재 & `1920px` 포함
    - 애니메이션: `<Stage>` + sprite 패턴
    - 프로토타입·와이어프레임·랜딩: 그 외
-   요청 산출물과 **동일 타입의 가장 최근 파일**을 `Reference Shell` 로 선정 (없으면 `skills/design-artifact/templates/openclaw-deck-shell.html` 등 표준 템플릿 사용).
+   요청 산출물과 **동일 타입의 가장 최근 파일**을 `Reference Shell` 로 선정 (없으면 `skills/design-artifact/templates/default-deck-shell.html` 등 표준 템플릿 사용).
 3. **프로젝트 내 `components.json`** (shadcn) → `mcp__shadcn__*` 툴로 프로젝트 컴포넌트·레지스트리 조회.
 4. **`globals.css` / `tailwind.config.*` / `theme.ts`** → CSS 변수, 컬러, 타이포 토큰 `Grep`.
 5. **`Agent(subagent_type="Explore")`** → 관련 컴포넌트·페이지·이미지 자산 탐색 (필요 시에만).
@@ -170,7 +170,7 @@ Agent(
   - 기타 자산 경로: {...}
 
   ## Reference Shell (from Step 2 Pre-flight)             ← REQUIRED
-  - Selected shell file: {designs/{existing}/index.html | templates/openclaw-deck-shell.html | none}
+  - Selected shell file: {designs/{existing}/index.html | templates/default-deck-shell.html | none}
   - Why: {선정 이유 — 같은 타입 최신, 표준 템플릿 등}
   - Directive: 이 파일의 셸 구조 (player-chrome / deck-stage / tweaks / window.__deck API) 를
                그대로 복제하고 <section> 내용만 교체하세요. 셸 구조 임의 변형 금지.
@@ -335,7 +335,7 @@ design-executor 가 위 MUST 중 하나라도 위반하면 design-verifier 의 "
 
 ### Reference Shell seed
 
-이 규약을 전부 갖춘 **빈 템플릿**이 `.claude/skills/design-artifact/templates/openclaw-deck-shell.html` 에 있다. 신규 덱은 이 파일을 `designs/{feature-name}/index.html` 로 복사해 시작하고, `<section>` 내용만 교체한다. 셸(`<deck-stage>`, player-chrome, tweaks) 은 수정 금지.
+이 규약을 전부 갖춘 **빈 템플릿**이 `.claude/skills/design-artifact/templates/default-deck-shell.html` 에 있다. 신규 덱은 이 파일을 `designs/{feature-name}/index.html` 로 복사해 시작하고, `<section>` 내용만 교체한다. 셸(`<deck-stage>`, player-chrome, tweaks) 은 수정 금지.
 
 ---
 

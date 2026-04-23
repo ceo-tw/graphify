@@ -133,7 +133,7 @@ Chrome/Safari 에서 로컬 HTML 로 렌더링. 검증 실패 시 스크린샷�
 - **컨텍스트 없이 시작하면 결과 품질이 낮음** — UI 스냅샷 먼저: `/ui-snapshot` 호출
 - **코드베이스 특정 컴포넌트 스타일 재현 시** — 파일 경로를 브리프에 명시 (예: `src/admin-portal/components/common/empty-state.tsx`)
 - **막히면 자동 탐색 활용** — `Agent(subagent_type="Explore")` 서브에이전트가 코드베이스 탐색
-- **덱 작업 시 셸 재사용** — `.claude/skills/design-artifact/templates/openclaw-deck-shell.html` 기반으로 section만 교체 권장
+- **덱 작업 시 셸 재사용** — `.claude/skills/design-artifact/templates/default-deck-shell.html` 기반으로 section만 교체 권장
 - **검증 실패 시 `.verify/` 확인** — `designs/{이름}/.verify/` 폴더의 스크린샷·콘솔 로그로 원인 파악
 
 ---

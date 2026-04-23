@@ -475,7 +475,7 @@ return {
 
 ##### Shell Compliance 실패 시 보고
 
-체크 1~9 중 하나라도 FAIL 이면 `missing_protocol_features` 에 항목별로 추가하고 `next_steps` 에 "design-executor 에 재위임 — Shell Compliance: {항목 번호·이름} 수정. SKILL.md §Deck Shell Compliance Clause 및 templates/openclaw-deck-shell.html 참조" 삽입.
+체크 1~9 중 하나라도 FAIL 이면 `missing_protocol_features` 에 항목별로 추가하고 `next_steps` 에 "design-executor 에 재위임 — Shell Compliance: {항목 번호·이름} 수정. SKILL.md §Deck Shell Compliance Clause 및 templates/default-deck-shell.html 참조" 삽입.
 
 ---
 
