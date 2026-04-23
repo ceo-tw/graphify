@@ -8,6 +8,12 @@
 [![Sponsor](https://img.shields.io/badge/sponsor-safishamsi-ea4aaa?logo=github-sponsors)](https://github.com/sponsors/safishamsi)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Safi%20Shamsi-0077B5?logo=linkedin)](https://www.linkedin.com/in/safi-shamsi)
 
+> **This is the ceo-tw fork** — adds URL-centric workflow (Next.js/Hono route overlay, wrapper-aware HTTP call detection, directed impact queries). Install from source:
+> ```bash
+> pip install git+https://github.com/ceo-tw/graphify.git@v4
+> ```
+> The PyPI `graphifyy` package is the upstream release and does not include the fork features. See [CHANGELOG](CHANGELOG.md) for v0.5.x fork additions.
+
 **An AI coding assistant skill.** Type `/graphify` in Claude Code, Codex, OpenCode, Cursor, Gemini CLI, GitHub Copilot CLI, VS Code Copilot Chat, Aider, OpenClaw, Factory Droid, Trae, Hermes, Kiro, or Google Antigravity - it reads your files, builds a knowledge graph, and gives you back structure you didn't know was there. Understand a codebase faster. Find the "why" behind architectural decisions.
 
 Fully multimodal. Drop in code, PDFs, markdown, screenshots, diagrams, whiteboard photos, images in other languages, or video and audio files - graphify extracts concepts and relationships from all of it and connects them into one graph. Videos are transcribed with Whisper using a domain-aware prompt derived from your corpus. 25 languages supported via tree-sitter AST (Python, JS, TS, Go, Rust, Java, C, C++, Ruby, C#, Kotlin, Scala, PHP, Swift, Lua, Zig, PowerShell, Elixir, Objective-C, Julia, Verilog, SystemVerilog, Vue, Svelte, Dart).
@@ -45,6 +51,35 @@ graphify runs in three passes. First, a deterministic AST pass extracts structur
 **Clustering is graph-topology-based — no embeddings.** Leiden finds communities by edge density. The semantic similarity edges that Claude extracts (`semantically_similar_to`, marked INFERRED) are already in the graph, so they influence community detection directly. The graph structure is the similarity signal — no separate embedding step or vector database needed.
 
 Every relationship is tagged `EXTRACTED` (found directly in source), `INFERRED` (reasonable inference, with a confidence score), or `AMBIGUOUS` (flagged for review). You always know what was found vs guessed.
+
+## URL-centric queries (fork)
+
+This fork adds four CLI subcommands that turn a URL into a full frontend-to-backend call chain — deterministically, without an LLM.
+
+```bash
+# 1. Map a concrete URL to the page file that renders it
+graphify resolve /portal/agents/172 --json
+
+# 2. Walk downstream from any node (page → component → hook → API endpoint)
+graphify callees <node-id> --edges calls,calls_http --max-hops 5
+
+# 3. Walk upstream — who calls this function?
+graphify callers <node-id> --edges calls --max-hops 3
+
+# 4. Full blast radius — every file touched if this node changes
+graphify blast <node-id> --edges calls --json
+```
+
+**What these commands require:** a directed graph built with `graphify build . --directed` (or `graphify update . --directed`). Undirected graphs produced by the upstream `/graphify` skill do not support `callers`/`callees`/`blast`.
+
+**Node addressing:** pass an exact node id or exact label — no fuzzy matching. API node labels use the format `METHOD path` (e.g. `POST /agents/:id/restart`). Use `jq` to look up ids when needed:
+
+```bash
+jq '.nodes[] | select(.label | test("build_from_json"; "i")) | {id, label}' \
+  graphify-out/graph.json
+```
+
+Supported stacks: Next.js App Router + Hono (full); any TypeScript/JavaScript monorepo (AST callers/callees/blast); Python, Go, Rust, Java, and other tree-sitter languages (AST only, no URL overlay). See [GETTING_STARTED.md](GETTING_STARTED.md) for the full workflow and known limitations.
 
 ## Install
 

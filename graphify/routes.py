@@ -56,6 +56,21 @@ def _page_component_id(page_file: Path) -> str:
     return _make_id(str(page_file))
 
 
+def _ambiguous_handler_node_id(receiver: str, file_path: Path, line: int) -> str:
+    """Stable placeholder ID for a handler whose receiver could not be resolved.
+
+    Uses only deterministic inputs (receiver name, full posix path, line number)
+    so the same unresolved call always maps to the same node ID across runs.
+
+    The full posix path (not just the stem) is used so that two files with the
+    same basename in different directories — e.g. ``apps/admin-api/src/index.ts``
+    vs ``apps/billing-api/src/index.ts`` — produce distinct node IDs even when
+    they both call the same receiver on the same line number.  ``_make_id``
+    normalises ``/`` to ``_`` automatically, so no manual replacement is needed.
+    """
+    return _make_id("ambiguous_handler", receiver, file_path.as_posix(), str(line))
+
+
 @dataclass
 class RouteScanResult:
     nodes: list[dict] = field(default_factory=list)
@@ -848,8 +863,53 @@ def scan_hono(project_root: Path) -> RouteScanResult:
             # Only accept receivers that resolve to a Hono binding.
             target = _resolve_binding_key(file_info, file_path, receiver)
             if target is None:
-                # Strict: receiver not a known Hono binding → skip. This is
-                # what prevents `headers.get(...)` false positives.
+                # Receiver not resolvable to a known Hono binding.
+                #
+                # Guard: only emit AMBIGUOUS when the receiver is a named
+                # import pointing at an external (non-local) module, i.e.
+                # `info["imports"][receiver]` exists and its resolved file
+                # is None.  Local non-Hono bindings (e.g. ``new Map()``,
+                # ``new Headers()``) are NOT in imports and must stay
+                # silent to prevent false positives.
+                file_imports = info.get("imports", {})
+                import_entry = file_imports.get(receiver)
+                if import_entry is None or import_entry[0] is not None:
+                    # Not an external import — keep the original strict
+                    # skip behaviour to avoid false-positive API nodes.
+                    continue
+                # receiver is imported from an unresolvable external package:
+                # emit an AMBIGUOUS overlay so the route is visible in the
+                # graph without falsely attributing it to a concrete handler.
+                raw_path = call.get("path", "/")
+                ambiguous_path = _join_mount("/", raw_path)
+                api_nid = _api_node_id(call["method"], ambiguous_path)
+                result.nodes.append({
+                    "id": api_nid,
+                    "label": f"{call['method']} {ambiguous_path}",
+                    "file_type": "route",
+                    "source_file": str(file_path),
+                    "source_location": f"L{call['line']}",
+                    "kind": "api",
+                    "method": call["method"],
+                    "url_pattern": ambiguous_path,
+                    "framework": "hono",
+                })
+                placeholder_nid = _ambiguous_handler_node_id(receiver, file_path, call["line"])
+                result.nodes.append({
+                    "id": placeholder_nid,
+                    "label": f"unresolved:{receiver}",
+                    "file_type": "route",
+                    "source_file": str(file_path),
+                    "source_location": f"L{call['line']}",
+                    "kind": "handler",
+                })
+                result.edges.append({
+                    "source": api_nid,
+                    "target": placeholder_nid,
+                    "relation": "handled_by",
+                    "confidence": "AMBIGUOUS",
+                    "reason": "unresolved_receiver",
+                })
                 continue
             bases = effective_mounts.get(target, ["/"])
             for base in bases:

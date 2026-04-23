@@ -259,7 +259,7 @@ def test_scan_hono_same_file_route_mount(tmp_path: Path):
 
 def test_cluster_places_route_nodes_in_synthetic_community():
     import networkx as nx
-    from graphify.cluster import cluster, _OVERLAY_COMMUNITY_LABEL
+    from graphify.cluster import cluster
 
     G = nx.DiGraph()
     # Normal code cluster: 3 connected nodes
@@ -640,3 +640,118 @@ def test_scan_nextjs_proxy_emits_multiple_services(tmp_path: Path):
     service_nodes = [n for n in result.nodes if n.get("kind") == "service"]
     service_labels = {n["label"] for n in service_nodes}
     assert len(service_labels) >= 2, f"expected at least 2 services, got {service_labels}"
+
+
+# ── AMBIGUOUS unresolved receiver ─────────────────────────────────────
+
+
+@pytest.mark.skipif(not _ts_fixture_available(), reason="tree-sitter-typescript not available")
+def test_ambiguous_unresolved_receiver_emits_handled_by(tmp_path: Path):
+    """A Hono method call whose receiver is imported from a non-existent
+    external module (so _resolve_binding_key returns None) must emit:
+      - one API node (kind='api') with the correct route pattern
+      - one placeholder handler node with kind='handler' and
+        confidence='AMBIGUOUS'
+      - one handled_by edge from the API node to the placeholder node
+        with confidence='AMBIGUOUS' and reason='unresolved_receiver'
+
+    Previously this call was silently skipped (continue). Now it must
+    produce an AMBIGUOUS overlay so the route is visible in the graph
+    without falsely attributing it to a concrete handler.
+    """
+    _write_ts(tmp_path, "admin-api/src/index.ts", textwrap.dedent("""
+        import { Hono } from 'hono';
+        import externalRouter from 'some-external-package-that-does-not-exist';
+        const app = new Hono();
+        externalRouter.get('/external/resource', async (c) => c.json({ ok: true }));
+        app.get('/local', async (c) => c.json({ ok: true }));
+        export default app;
+    """).strip())
+    result = scan_hono(tmp_path)
+
+    # The /local route (resolved receiver) must still appear as EXTRACTED
+    extracted_edges = [
+        e for e in result.edges
+        if e.get("confidence") == "EXTRACTED" and e.get("relation") == "handled_by"
+    ]
+    assert extracted_edges, "resolved routes must still emit EXTRACTED handled_by edges"
+
+    # The /external/resource route (unresolved receiver) must now emit an
+    # API node rather than being silently dropped
+    api_pairs = {(n["method"], n["url_pattern"]) for n in result.nodes if n.get("kind") == "api"}
+    assert ("GET", "/external/resource") in api_pairs, (
+        "unresolved-receiver route must produce an API node with confidence=AMBIGUOUS"
+    )
+
+    # There must be an AMBIGUOUS handled_by edge sourced from that API node
+    from graphify.routes import _api_node_id
+    ambiguous_api_nid = _api_node_id("GET", "/external/resource")
+    ambiguous_edges = [
+        e for e in result.edges
+        if e.get("source") == ambiguous_api_nid
+        and e.get("relation") == "handled_by"
+        and e.get("confidence") == "AMBIGUOUS"
+    ]
+    assert ambiguous_edges, (
+        "unresolved-receiver route must emit a handled_by edge with confidence='AMBIGUOUS'"
+    )
+    assert ambiguous_edges[0].get("reason") == "unresolved_receiver", (
+        "AMBIGUOUS handled_by edge must carry reason='unresolved_receiver'"
+    )
+
+
+@pytest.mark.skipif(not _ts_fixture_available(), reason="tree-sitter-typescript not available")
+def test_ambiguous_handler_node_ids_distinct_across_files(tmp_path: Path):
+    """Regression: two files with the same basename (e.g. index.ts) in different
+    directories must NOT produce colliding ambiguous handler node IDs when they
+    both call the same unresolved receiver on the same line number.
+
+    Before the fix, ``_ambiguous_handler_node_id`` used only ``file_path.stem``
+    (``"index"``), causing both placeholders to share the same node ID and
+    NetworkX's ``add_node`` last-write-wins behaviour to silently merge them.
+    After the fix, the full posix path is used so the IDs are distinct.
+    """
+    # Both files: same basename ("index.ts"), same receiver ("externalRouter"),
+    # same method call line (line 4 in each file after dedent strip).
+    shared_body = textwrap.dedent("""
+        import { Hono } from 'hono';
+        import externalRouter from 'some-external-package-that-does-not-exist';
+        const app = new Hono();
+        externalRouter.get('/items', async (c) => c.json({ ok: true }));
+        export default app;
+    """).strip()
+
+    _write_ts(tmp_path, "apps/admin-api/src/index.ts", shared_body)
+    _write_ts(tmp_path, "apps/billing-api/src/index.ts", shared_body)
+
+    result = scan_hono(tmp_path)
+
+    # There must be exactly 2 handler nodes with kind="handler" and AMBIGUOUS
+    # confidence implied by the unresolved receiver path.
+    handler_nodes = [n for n in result.nodes if n.get("kind") == "handler"]
+    assert len(handler_nodes) == 2, (
+        f"expected 2 distinct placeholder handler nodes, got {len(handler_nodes)}: "
+        f"{[n['id'] for n in handler_nodes]}"
+    )
+
+    # The two handler node IDs must be distinct.
+    handler_ids = [n["id"] for n in handler_nodes]
+    assert handler_ids[0] != handler_ids[1], (
+        "ambiguous handler node IDs must differ when source files share only the basename; "
+        f"both resolved to: {handler_ids[0]!r}"
+    )
+
+    # Each placeholder node must preserve its own source_file attribute.
+    source_files = {n.get("source_file") for n in handler_nodes}
+    assert len(source_files) == 2, (
+        f"each handler node must record its own source_file; got: {source_files}"
+    )
+
+    # Both handled_by edges must carry AMBIGUOUS confidence.
+    ambiguous_edges = [
+        e for e in result.edges
+        if e.get("relation") == "handled_by" and e.get("confidence") == "AMBIGUOUS"
+    ]
+    assert len(ambiguous_edges) == 2, (
+        f"expected 2 AMBIGUOUS handled_by edges, got {len(ambiguous_edges)}"
+    )

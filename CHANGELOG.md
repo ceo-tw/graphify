@@ -2,6 +2,49 @@
 
 Full release notes with details on each version: [GitHub Releases](https://github.com/safishamsi/graphify/releases)
 
+## 0.5.5 (fork: ceo-tw, 2026-04-23) — AMBIGUOUS edge-tag emission
+
+### Summary
+Activates the third edge-tag confidence value (`AMBIGUOUS`) in the deterministic pipeline. Graphs produced by v0.5.5 contain edges that v0.5.4 silently dropped. Additive — **no existing EXTRACTED or INFERRED edges change confidence value**.
+
+### New emit sites
+
+**1. `graphify/http_calls.py` — env-base-only HTTP calls**
+- Trigger: `_strip_env_base_prefix()` returns `None` (pure env-var URL with no path, e.g. `fetch(process.env.ADMIN_API_URL)`)
+- Before: silent drop (call site invisible in graph)
+- After: placeholder API node + `calls_http` edge with `confidence="AMBIGUOUS"`, `reason="env_base_only"`
+- Placeholder node id: `api_ambiguous_<method>_<env_var>` (deterministic via `_make_id()`)
+
+**2. `graphify/routes.py` — unresolved Hono receiver bindings**
+- Trigger: `_resolve_binding_key()` returns `None` AND the receiver is an external import (false-positive guard: locally-defined non-Hono objects like `Map` still fall through silently)
+- Before: route skipped entirely
+- After: API node for recoverable route pattern + placeholder handler node + `handled_by` edge with `confidence="AMBIGUOUS"`, `reason="unresolved_receiver"`
+- Placeholder node id: `handler_ambiguous_<receiver>_<file_stem>_l<line>` (deterministic via `_make_id()`)
+
+### Edge-tag vocabulary
+All three documented values now actually appear in output graphs:
+- `EXTRACTED` — direct AST evidence (unchanged)
+- `INFERRED` — reasonable inference (unchanged)
+- `AMBIGUOUS` — **now actively emitted** (was vocabulary-only in v0.5.4)
+
+### New optional edge field: `reason`
+- `"env_base_only"` — http_calls.py AMBIGUOUS site
+- `"unresolved_receiver"` — routes.py AMBIGUOUS site
+Optional and absent from EXTRACTED/INFERRED edges (backwards-compatible).
+
+### Backwards compatibility
+- All EXTRACTED/INFERRED edges unchanged
+- Cache schema v3 unchanged (no migration)
+- Consumers filtering `confidence in {"EXTRACTED","INFERRED"}` silently exclude new AMBIGUOUS edges (same behavior as v0.5.4)
+- Consumers handling all three documented values receive AMBIGUOUS edges as intended
+
+### Known limitations
+- **Hono mount prefix on AMBIGUOUS routes**: when an unresolved external receiver is emitted as AMBIGUOUS, any `app.route('/prefix', externalRouter)` mount declaration in the same file is not applied to the placeholder API node's `url_pattern`. For example, `externalRouter.get('/users', ...)` with `app.route('/admin', externalRouter)` emits `GET /users` instead of the logically-correct `GET /admin/users`. This is intentionally conservative for v0.5.5 and will be resolved in a follow-up that salvages mount prefixes via `info['mount_calls']` lookup against the receiver symbol.
+
+### Drift cleanup (also in this release)
+- `pyproject.toml [project.urls]` updated from upstream `safishamsi/graphify` to fork `ceo-tw/graphify`
+- `README.md` adds fork-install banner at top + new `## URL-centric queries (fork)` section documenting `resolve`/`callers`/`callees`/`blast`
+
 ## 0.5.4 (fork: ceo-tw, 2026-04-19)
 
 Cache-location hygiene. `graphify build --out-dir <dir>` previously honored the flag for the graph outputs but still dropped the 13 MB parser cache at `<source>/graphify-out/cache/`, polluting the source tree on every rebuild. Cache now follows `--out-dir` automatically; source tree stays clean.

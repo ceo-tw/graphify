@@ -197,6 +197,153 @@ def test_explicit_override_via_graphify_dir(tmp_path: Path):
     assert "ANY" in methods or "POST" in methods
 
 
+# ───── AMBIGUOUS env-base-only URL emission ─────────────────────────────
+
+
+@pytest.mark.skipif(not _ts_fixture_available(), reason="tree-sitter-typescript not available")
+def test_ambiguous_env_base_only_emits_calls_http(tmp_path: Path):
+    """A call whose URL is purely an env-base placeholder (e.g. `${ADMIN_API_URL}`)
+    with no path portion should emit a placeholder API node + calls_http edge
+    with confidence="AMBIGUOUS" and reason="env_base_only", instead of being
+    silently dropped.
+    """
+    _write(tmp_path / "src" / "lib" / "api-client.ts", textwrap.dedent("""
+        const BASE = process.env.ADMIN_API_URL;
+        export async function get(endpoint: string, init?: RequestInit) {
+          return fetch(`${BASE}${endpoint}`, { method: 'GET', ...init });
+        }
+    """).strip())
+    _write(tmp_path / "src" / "hooks" / "use-admin.ts", textwrap.dedent("""
+        import { get } from '../lib/api-client';
+        export async function ping() {
+          return get(`${process.env.ADMIN_API_URL}`);
+        }
+    """).strip())
+    result = scan(tmp_path)
+
+    ambiguous_edges = [
+        e for e in result.edges
+        if e.get("relation") == "calls_http" and e.get("confidence") == "AMBIGUOUS"
+    ]
+    assert ambiguous_edges, "expected at least one AMBIGUOUS calls_http edge for env-base-only URL"
+
+    edge = ambiguous_edges[0]
+    assert edge.get("reason") == "env_base_only", (
+        f"expected reason='env_base_only', got {edge.get('reason')!r}"
+    )
+
+    # The target node (placeholder API node) must exist in result.nodes
+    target_ids = {n["id"] for n in result.nodes}
+    assert edge["target"] in target_ids, (
+        f"placeholder API node {edge['target']!r} not found in result.nodes"
+    )
+
+    # Placeholder node must be tagged as ambiguous kind
+    placeholder_nodes = [n for n in result.nodes if n["id"] == edge["target"]]
+    assert placeholder_nodes, "placeholder node missing"
+    pn = placeholder_nodes[0]
+    assert pn.get("kind") == "api", f"expected kind='api', got {pn.get('kind')!r}"
+    assert pn.get("confidence") == "AMBIGUOUS", (
+        f"expected confidence='AMBIGUOUS' on placeholder node, got {pn.get('confidence')!r}"
+    )
+
+
+@pytest.mark.skipif(not _ts_fixture_available(), reason="tree-sitter-typescript not available")
+def test_two_distinct_env_vars_produce_distinct_placeholder_nodes(tmp_path: Path):
+    """Two inline fetch calls with different process.env.* vars must emit TWO
+    distinct placeholder API nodes — not collapse into one shared :param node.
+
+    Root cause guard: _string_literal_value() normalised all multi-dot member
+    chains (process.env.NAME) to ':param', causing ADMIN_API_URL and
+    BILLING_API_URL to share the same node id 'ambiguous_get_param'.
+    """
+    _write(tmp_path / "src" / "services" / "admin.ts", textwrap.dedent("""
+        export async function pingAdmin() {
+          return fetch(`${process.env.ADMIN_API_URL}`);
+        }
+    """).strip())
+    _write(tmp_path / "src" / "services" / "billing.ts", textwrap.dedent("""
+        export async function pingBilling() {
+          return fetch(`${process.env.BILLING_API_URL}`);
+        }
+    """).strip())
+    result = scan(tmp_path)
+
+    ambiguous_nodes = [n for n in result.nodes if n.get("confidence") == "AMBIGUOUS" and n.get("kind") == "api"]
+
+    # Must have produced TWO distinct nodes, not one collapsed :param node
+    assert len(ambiguous_nodes) >= 2, (
+        f"expected 2 distinct AMBIGUOUS API nodes, got {len(ambiguous_nodes)}: "
+        f"{[n['id'] for n in ambiguous_nodes]}"
+    )
+
+    node_ids = {n["id"] for n in ambiguous_nodes}
+    assert len(node_ids) >= 2, (
+        f"expected 2 distinct node IDs, got: {node_ids}"
+    )
+
+    # Each node's url_pattern must reference its specific env-var name
+    url_patterns = {n.get("url_pattern", "") for n in ambiguous_nodes}
+    assert any("ADMIN_API_URL" in p for p in url_patterns), (
+        f"expected ADMIN_API_URL in url_patterns, got: {url_patterns}"
+    )
+    assert any("BILLING_API_URL" in p for p in url_patterns), (
+        f"expected BILLING_API_URL in url_patterns, got: {url_patterns}"
+    )
+
+
+@pytest.mark.skipif(not _ts_fixture_available(), reason="tree-sitter-typescript not available")
+def test_process_env_name_normalised_to_env_var_name(tmp_path: Path):
+    """process.env.ADMIN_API_URL in a template substitution must produce
+    :ADMIN_API_URL internally, not the generic :param.
+
+    When used as a base prefix (e.g. `${process.env.ADMIN_API_URL}/path`),
+    _strip_env_base_prefix drops the prefix and keeps the path, so the final
+    url_pattern is '/api/legal/terms'. The key invariant is that the path is
+    preserved (not discarded or collapsed to :param).
+
+    The env-base-only case (no path) is tested by
+    test_two_distinct_env_vars_produce_distinct_placeholder_nodes.
+    """
+    _write(tmp_path / "src" / "lib" / "legal.ts", textwrap.dedent("""
+        export async function getTerms() {
+          return fetch(`${process.env.ADMIN_API_URL}/api/legal/terms`);
+        }
+    """).strip())
+    result = scan(tmp_path)
+    api_pairs = {(n["method"], n["url_pattern"]) for n in result.nodes if n.get("kind") == "api"}
+    # The env-base prefix is stripped; the path portion is preserved exactly
+    assert ("GET", "/api/legal/terms") in api_pairs, (
+        f"expected ('GET', '/api/legal/terms') in {api_pairs}"
+    )
+
+
+@pytest.mark.skipif(not _ts_fixture_available(), reason="tree-sitter-typescript not available")
+def test_import_meta_env_name_normalised(tmp_path: Path):
+    """import.meta.env.VITE_API_URL in a template substitution must NOT
+    collapse to :param. The env-base prefix is stripped by _strip_env_base_prefix,
+    leaving the path portion '/data' as the url_pattern — same as process.env.*.
+
+    Key invariant: the path is preserved (not lost or turned into ':param/data').
+    """
+    _write(tmp_path / "src" / "lib" / "vite-client.ts", textwrap.dedent("""
+        export async function loadData() {
+          return fetch(`${import.meta.env.VITE_API_URL}/data`);
+        }
+    """).strip())
+    result = scan(tmp_path)
+    api_pairs = {(n["method"], n["url_pattern"]) for n in result.nodes if n.get("kind") == "api"}
+    url_patterns = {p for (_, p) in api_pairs}
+    # The env-base prefix is stripped; '/data' path must be preserved
+    assert "/data" in url_patterns, (
+        f"expected '/data' in url_patterns after env-base strip, got: {url_patterns}"
+    )
+    # Must not collapse to ':param/data' (the old broken behavior)
+    assert ":param/data" not in url_patterns, (
+        f"import.meta.env.VITE_API_URL collapsed to :param: {url_patterns}"
+    )
+
+
 # ───── calls_http edge targets ─────────────────────────────────────────
 
 
@@ -295,16 +442,26 @@ def test_env_base_template_fetch(tmp_path: Path):
 
 
 @pytest.mark.skipif(not _ts_fixture_available(), reason="tree-sitter-typescript not available")
-def test_env_base_only_no_path_is_skipped(tmp_path: Path):
+def test_env_base_only_no_path_emits_ambiguous(tmp_path: Path):
     """A fetch that resolves to just an env-base placeholder (no real path)
-    must NOT emit an API node — it is unresolvable."""
+    must emit an AMBIGUOUS placeholder API node + calls_http edge with
+    reason='env_base_only', rather than being silently dropped."""
     _write(tmp_path / "src" / "lib" / "bootstrap.ts", textwrap.dedent("""
         const BASE = process.env.BASE || '';
         export async function ping() { return fetch(`${BASE}`); }
     """).strip())
     result = scan(tmp_path)
     api_nodes = [n for n in result.nodes if n.get("kind") == "api"]
-    assert api_nodes == []
+    assert api_nodes, "expected one AMBIGUOUS placeholder API node"
+    assert all(n.get("confidence") == "AMBIGUOUS" for n in api_nodes), (
+        "env-base-only API node must carry confidence='AMBIGUOUS'"
+    )
+    ambiguous_edges = [
+        e for e in result.edges
+        if e.get("relation") == "calls_http" and e.get("confidence") == "AMBIGUOUS"
+    ]
+    assert ambiguous_edges, "expected AMBIGUOUS calls_http edge"
+    assert all(e.get("reason") == "env_base_only" for e in ambiguous_edges)
 
 
 @pytest.mark.skipif(not _ts_fixture_available(), reason="tree-sitter-typescript not available")

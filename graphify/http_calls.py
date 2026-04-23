@@ -187,7 +187,14 @@ def _string_literal_value(node, source: bytes) -> Optional[str]:
                     # `state.id` → `:id`
                     out.append(f":{inner.rsplit('.', 1)[-1]}")
                 else:
-                    out.append(":param")
+                    # Multi-dot chains: process.env.NAME, import.meta.env.NAME, etc.
+                    # If the last segment after the last '.' is a plain identifier,
+                    # preserve its name rather than collapsing to :param.
+                    last_seg = inner.rsplit(".", 1)[-1]
+                    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", last_seg):
+                        out.append(f":{last_seg}")
+                    else:
+                        out.append(":param")
             else:
                 out.append(text)
         return "".join(out)
@@ -463,6 +470,27 @@ def _caller_anchor_id(
 # ───── Main scan ────────────────────────────────────────────────────────
 
 
+def _extract_env_var_name(url: str) -> str:
+    """Return the env-var name from a bare ``:VARNAME`` placeholder URL.
+
+    ``':ADMIN_API_URL'`` → ``'ADMIN_API_URL'``
+    ``':BASE'``          → ``'BASE'``
+    Any other input      → ``'UNKNOWN'``
+    """
+    if url.startswith(":") and "/" not in url:
+        name = url[1:]
+        return name if name else "UNKNOWN"
+    return "UNKNOWN"
+
+
+def _ambiguous_api_node_id(method: str, env_var: str) -> str:
+    """Stable, deterministic node ID for an env-base-only placeholder API node.
+
+    Uses only ``method`` and ``env_var`` strings — no clock, no uuid.
+    """
+    return _make_id("ambiguous", method, env_var)
+
+
 def _append_api_and_edge(
     result: HttpCallsResult,
     method: str,
@@ -475,9 +503,32 @@ def _append_api_and_edge(
     cleaned = _strip_query_and_hash(url)
     # Template-literal env bases (e.g. :ADMIN_API_URL/api/...) become bogus
     # URL prefixes; drop the first placeholder segment. A pure env-base URL
-    # with no path portion yields None — skip emission entirely.
+    # with no path portion yields None — emit a placeholder AMBIGUOUS node
+    # instead of silently dropping the call.
     stripped = _strip_env_base_prefix(cleaned)
     if stripped is None:
+        env_var = _extract_env_var_name(cleaned)
+        api_nid = _ambiguous_api_node_id(method, env_var)
+        result.nodes.append({
+            "id": api_nid,
+            "label": f"{method} :{env_var}",
+            "file_type": "route",
+            "source_file": str(source_file),
+            "source_location": f"L{line}",
+            "kind": "api",
+            "method": method,
+            "url_pattern": f":{env_var}",
+            "confidence": "AMBIGUOUS",
+        })
+        result.edges.append({
+            "source": caller_id,
+            "target": api_nid,
+            "relation": "calls_http",
+            "method": method,
+            "confidence": "AMBIGUOUS",
+            "reason": "env_base_only",
+            "source_location": f"L{line}",
+        })
         return
     cleaned = _normalize_url_pattern(stripped)
     api_nid = _api_node_id(method, cleaned)
