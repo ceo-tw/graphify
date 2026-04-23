@@ -1,6 +1,6 @@
 # Document Quality Principles
 
-> openclaw-cloud 프로젝트의 문서 품질 3원칙. skill/agent 산출물 작성 시 참조.
+> 프로젝트 문서 품질 3원칙. skill/agent 산출물 작성 시 참조. 프로젝트-중립 규칙 — 코드 인용 예시 경로는 현재 저장소 기준으로 해석한다.
 
 ## 1. 3원칙 정의
 
@@ -9,8 +9,8 @@
 주장이나 데이터를 제시한 직후 `[n]` 마커로 출처를 명시한다. 문서 하단에 reference table을 배치하여 번호와 실제 출처를 매핑한다. 코드 인용은 `path:line` 또는 `path:line-line` 형식을 사용하며, 외부 링크는 full URL, 내부 파일은 repo 루트 기준 상대경로로 표기한다.
 
 - 문서 하단 reference table 형식: `[n] URL / 파일경로:라인 / 커밋 SHA`
-- 코드 인용 예시: `src/admin-api/src/routes/settings-plans.ts:42-58`
-- 외부 링크 예시: `https://hono.dev/docs/api/context`
+- 코드 인용 예시: `graphify/build.py:42-58`
+- 외부 링크 예시: `https://networkx.org/documentation/stable/reference/classes/digraph.html`
 
 ### 원칙 2: Narrative prose (서술형 산문)
 

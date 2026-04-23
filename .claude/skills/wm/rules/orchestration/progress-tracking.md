@@ -167,11 +167,12 @@ When an agent encounters failure, it follows this 4-phase protocol:
 ### 3.7 HARD GATE Failure
 
 **HARD GATE triggers** (stop immediately, no auto-retry):
-- `security-reviewer` reports tenant_id isolation breach
-- Hardcoded secrets detected in staged files
-- Authentication bypass path found
-- Payment flow without idempotency
-- Database migration with data loss risk
+- `security-reviewer` reports `eval()` / `exec()` / `shell=True` on analyzed content
+- Determinism breach in the pipeline (wall-clock / unseeded random / non-deterministic sort in `extract.py` / `build.py` / `routes.py` / `http_calls.py` / `analyze.py` / `cli_graph_query.py`)
+- Path traversal outside `--out-dir` / `--cache-dir` detected in file-writing code
+- Hardcoded secrets or target-codebase credentials leaked into `graph.json` / `GRAPHIFY_REPORT.md`
+- Edge-tag vocabulary broken without CHANGELOG entry (`EXTRACTED` / `INFERRED` / `AMBIGUOUS` — stable contract)
+- Cache schema version bump without `SCHEMA_VERSION` constant update in `cache.py`
 
 ```markdown
 ## HARD GATE Failure Handling
