@@ -7,6 +7,9 @@ import networkx as nx
 from networkx.readwrite import json_graph
 from graphify.security import sanitize_label
 
+# Confidence tier ranking: higher = more trustworthy
+_CONF_RANK: dict[str, int] = {"EXTRACTED": 3, "INFERRED": 2, "AMBIGUOUS": 1}
+
 
 def _load_graph(graph_path: str) -> nx.Graph:
     try:
@@ -45,19 +48,82 @@ def _strip_diacritics(text: str) -> str:
     return "".join(c for c in nfkd if not unicodedata.combining(c))
 
 
-def _score_nodes(G: nx.Graph, terms: list[str]) -> list[tuple[float, str]]:
-    scored = []
+def _fuzzy_score_nodes(
+    G: nx.Graph,
+    norm_terms: list[str],
+    exclude: set[str],
+) -> list[tuple[float, str]]:
+    """Fuzzy stage: uses rapidfuzz if available, falls back to difflib.
+
+    Threshold 0.6; score = round((best_ratio - 0.6) * 1.0, 3) → [0.0, 0.4].
+    Only nodes not already in *exclude* (stage-1 hits) are considered.
+    """
+    try:
+        from rapidfuzz import fuzz as _fuzz
+        _fuzzer = lambda a, b: _fuzz.token_set_ratio(a, b) / 100.0  # noqa: E731
+    except ImportError:
+        import difflib
+        _fuzzer = lambda a, b: difflib.SequenceMatcher(None, a, b).ratio()  # noqa: E731
+
+    threshold = 0.6
+    results = []
+    for nid, data in G.nodes(data=True):
+        if nid in exclude:
+            continue
+        norm_label = data.get("norm_label") or _strip_diacritics(data.get("label") or "").lower()
+        best = max((_fuzzer(t, norm_label) for t in norm_terms), default=0.0)
+        if best >= threshold:
+            results.append((round((best - threshold) * 1.0, 3), nid))
+    return sorted(results, reverse=True)
+
+
+def _score_nodes(G: nx.Graph, terms: list[str], fuzzy: bool = True) -> list[tuple[float, str]]:
     norm_terms = [_strip_diacritics(t).lower() for t in terms]
+    scored = []
     for nid, data in G.nodes(data=True):
         norm_label = data.get("norm_label") or _strip_diacritics(data.get("label") or "").lower()
         source = (data.get("source_file") or "").lower()
         score = sum(1 for t in norm_terms if t in norm_label) + sum(0.5 for t in norm_terms if t in source)
         if score > 0:
             scored.append((score, nid))
-    return sorted(scored, reverse=True)
+    scored = sorted(scored, reverse=True)
+    if fuzzy and len(scored) < 3 and norm_terms:
+        exclude = {nid for _, nid in scored}
+        fuzzy_hits = _fuzzy_score_nodes(G, norm_terms, exclude)
+        scored = scored + fuzzy_hits
+    return scored
 
 
-def _bfs(G: nx.Graph, start_nodes: list[str], depth: int) -> tuple[set[str], list[tuple]]:
+def _edge_passes(G: nx.Graph, u: str, v: str, min_confidence: "str | None") -> bool:
+    """Return True if the edge(s) between u and v satisfy the min_confidence threshold.
+
+    For MultiGraph/MultiDiGraph: the edge passes if *any* parallel edge meets the
+    threshold (union semantics — at least one path qualifies).
+    For simple Graph/DiGraph: checks the single edge.
+    min_confidence=None always passes (no filtering).
+    """
+    if min_confidence is None:
+        return True
+    min_rank = _CONF_RANK.get(min_confidence, 0)
+    raw = G[u][v]
+    if isinstance(G, (nx.MultiGraph, nx.MultiDiGraph)):
+        edge_dicts = raw.values()
+    else:
+        edge_dicts = [raw]
+    for ed in edge_dicts:
+        conf = ed.get("confidence", "")
+        if _CONF_RANK.get(conf, 0) >= min_rank:
+            return True
+    return False
+
+
+def _bfs(
+    G: nx.Graph,
+    start_nodes: list[str],
+    depth: int,
+    *,
+    min_confidence: "str | None" = None,
+) -> tuple[set[str], list[tuple]]:
     visited: set[str] = set(start_nodes)
     frontier = set(start_nodes)
     edges_seen: list[tuple] = []
@@ -65,7 +131,7 @@ def _bfs(G: nx.Graph, start_nodes: list[str], depth: int) -> tuple[set[str], lis
         next_frontier: set[str] = set()
         for n in frontier:
             for neighbor in G.neighbors(n):
-                if neighbor not in visited:
+                if neighbor not in visited and _edge_passes(G, n, neighbor, min_confidence):
                     next_frontier.add(neighbor)
                     edges_seen.append((n, neighbor))
         visited.update(next_frontier)
@@ -73,7 +139,13 @@ def _bfs(G: nx.Graph, start_nodes: list[str], depth: int) -> tuple[set[str], lis
     return visited, edges_seen
 
 
-def _dfs(G: nx.Graph, start_nodes: list[str], depth: int) -> tuple[set[str], list[tuple]]:
+def _dfs(
+    G: nx.Graph,
+    start_nodes: list[str],
+    depth: int,
+    *,
+    min_confidence: "str | None" = None,
+) -> tuple[set[str], list[tuple]]:
     visited: set[str] = set()
     edges_seen: list[tuple] = []
     stack = [(n, 0) for n in reversed(start_nodes)]
@@ -83,7 +155,7 @@ def _dfs(G: nx.Graph, start_nodes: list[str], depth: int) -> tuple[set[str], lis
             continue
         visited.add(node)
         for neighbor in G.neighbors(node):
-            if neighbor not in visited:
+            if neighbor not in visited and _edge_passes(G, node, neighbor, min_confidence):
                 stack.append((neighbor, d + 1))
                 edges_seen.append((node, neighbor))
     return visited, edges_seen
@@ -107,6 +179,67 @@ def _subgraph_to_text(G: nx.Graph, nodes: set[str], edges: list[tuple], token_bu
     if len(output) > char_budget:
         output = output[:char_budget] + f"\n... (truncated to ~{token_budget} token budget)"
     return output
+
+
+def _subgraph_to_json(
+    G: nx.Graph,
+    nodes: "set[str]",
+    edges: "list[tuple]",
+) -> dict:
+    """Render subgraph as a JSON-serialisable dict.
+
+    Returns::
+
+        {
+            "nodes": [{"id": ..., "label": ..., "source_file": ...,
+                       "source_location": ..., "community": ..., "file_type": ...}, ...],
+            "edges": [{"source": ..., "target": ..., "relation": ...,
+                       "confidence": ..., "confidence_score": ...}, ...],
+            "subgraph_node_count": <int>,
+            "subgraph_edge_count": <int>,
+        }
+
+    Only pairwise edges whose both endpoints are in *nodes* are included.
+    Deterministic: nodes sorted by degree descending then by id; edges in
+    traversal-list order with duplicates removed.
+    """
+    node_list = []
+    for nid in sorted(nodes, key=lambda n: (-G.degree(n), n)):
+        d = G.nodes[nid]
+        node_list.append({
+            "id": nid,
+            "label": sanitize_label(d.get("label", nid)),
+            "source_file": d.get("source_file", ""),
+            "source_location": d.get("source_location", ""),
+            "community": d.get("community", None),
+            "file_type": d.get("file_type", ""),
+        })
+
+    seen_edges: set[tuple] = set()
+    edge_list = []
+    for u, v in edges:
+        if u not in nodes or v not in nodes:
+            continue
+        key = (u, v)
+        if key in seen_edges:
+            continue
+        seen_edges.add(key)
+        raw = G[u][v]
+        d = next(iter(raw.values()), {}) if isinstance(G, (nx.MultiGraph, nx.MultiDiGraph)) else raw
+        edge_list.append({
+            "source": u,
+            "target": v,
+            "relation": d.get("relation", ""),
+            "confidence": d.get("confidence", ""),
+            "confidence_score": d.get("confidence_score", None),
+        })
+
+    return {
+        "nodes": node_list,
+        "edges": edge_list,
+        "subgraph_node_count": len(node_list),
+        "subgraph_edge_count": len(edge_list),
+    }
 
 
 def _find_node(G: nx.Graph, label: str) -> list[str]:

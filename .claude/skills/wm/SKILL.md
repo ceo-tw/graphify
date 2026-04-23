@@ -59,34 +59,59 @@ When `/wm` is invoked, **immediately call `EnterPlanMode()`** before any other t
 
 > **Full details**: [Exploration Rules](references/exploration-rules.md)
 
-When file exploration is needed, **prefer the Explore agent** for broad codebase searches. Reading known file paths with `Read()` is allowed.
+When file exploration is needed, route requests through the **4-tier fallback** below. Reading known file paths with `Read()` is always allowed.
 
-**[A-1] URL/symbol-bearing requests**: if the user request contains URL paths (`/portal/*`, `/api/*`), route params (`:id`), or specific symbol names (e.g., `handleSubscriptionCreated`, `TossProvider`), **prefer `graphify resolve` / `graphify callees` first** — the `_global` directed graph gives the exact FE→API→handler chain in one call. Only fall back to `Explore` for the files graphify did not resolve.
+**[A-1] File exploration fallback order** (evaluate top-down; first match wins):
 
-| Action | Status | Tool |
-|--------|--------|------|
-| URL/symbol-based structural lookup | **Preferred (A-1)** | `Bash("graphify resolve <url> --json --graph $GLOBAL_GRAPH")` (read-only, Plan Mode allowed) |
-| Broad search via Explore agent | Preferred (fallback) | `Agent(subagent_type="Explore", model="haiku")` |
-| Read known file path | Allowed | `Read("/path/to/known/file.ts")` |
+1. **URL / exact-symbol request** → `graphify resolve` / `graphify callees` / `graphify callers` / `graphify blast` on the `_global` directed graph.
+   - Triggers: URL prefix (`/portal/*`, `/api/*`), route params (`:id`), identifier tokens (snake_case / PascalCase / camelCase, ≥ 3 chars).
+   - Example: "재시작 버튼에서 500 에러" + URL `/portal/agents/:id` → `graphify resolve /portal/agents/:id --json --graph $GLOBAL_GRAPH`.
+
+2. **Natural-language / concept question** → `knowledge-graph-navigator` agent, which delegates to `graphify query` (v0.5.6+).
+   - Triggers: wh-markers (`어떻게`, `왜`, `무엇`, `how`, `why`, `what`, `?`); request without exact identifier; ≥ 5-token free-form prose.
+   - Example: "현재 graphify 에서 tenant isolation 을 구현하는 함수들은?" → navigator → `graphify query "tenant isolation" --budget 1500 --min-confidence INFERRED --json --graph $GLOBAL_GRAPH`.
+
+3. **Two-node path request** → `knowledge-graph-navigator` agent, which delegates to `graphify path` (v0.5.6+).
+   - Triggers: two quoted identifiers; explicit "from X to Y" / "between A and B" / arrow `A -> B`.
+   - Example: "billing.service.ts 의 createInvoice 에서 stripe.charges.create 까지 경로" → navigator → `graphify path "createInvoice" "stripe.charges.create" --json`.
+
+4. **Explore agent (fallback)** → `Agent(subagent_type="Explore", model="haiku")`.
+   - Triggers: tiers (1)-(3) all return 0 hits; non-code artifact search (docs, config, asset); user explicitly requests broad scan.
+
+**Mixed input**: try (1) first to extract the URL/symbol chain, then (2) to semantically augment with concept matches. Example: `"/portal/agents/172 에서 tenant isolation 구현"` → (1) resolves URL chain, (2) augments with tenant-isolation semantic neighbors.
+
+| Tier | Action | Tool |
+|------|--------|------|
+| 1 | URL/symbol structural lookup | `Bash("graphify resolve/callees/callers/blast ... --json --graph $GLOBAL_GRAPH")` (read-only; Plan Mode safe) |
+| 2 | NL concept question | `Agent(subagent_type="knowledge-graph-navigator")` → wraps `graphify query` |
+| 3 | Two-node path | `Agent(subagent_type="knowledge-graph-navigator")` → wraps `graphify path` |
+| 4 | Broad search (fallback) | `Agent(subagent_type="Explore", model="haiku")` |
+| — | Read known file path | `Read("/path/to/known/file.ts")` |
 
 **Graphify CLI quick reference** (all read-only, no file writes — Plan Mode safe):
 ```bash
 GLOBAL_GRAPH=$CLAUDE_PROJECT_DIR/.claude/architecture/graph/_global/graphify-out/graph.json
 GRAPHIFY=$CLAUDE_PROJECT_DIR/.claude/graphify/.venv/bin/graphify
 
-# 1) URL -> FE page + 1-hop neighbors
+# Tier 1: URL -> FE page + 1-hop neighbors
 $GRAPHIFY resolve /portal/agents/:id --json --graph $GLOBAL_GRAPH
 
-# 2) find exact id/label from a symbol keyword (fuzzy not supported)
+# Tier 1: exact id/label from a symbol keyword (fuzzy not supported by resolve)
 jq --arg kw "<symbol>" '.nodes[] | select(.label | test($kw; "i")) | {id,label,kind,source_file}' $GLOBAL_GRAPH | head -20
 
-# 3) downstream chain (FE -> API -> handler)
+# Tier 1: downstream chain (FE -> API -> handler)
 $GRAPHIFY callees <node-id> --edges calls,calls_http,handled_by --max-hops 5 --json --graph $GLOBAL_GRAPH
+
+# Tier 2 (via navigator): NL question -> semantic subgraph (v0.5.6+)
+$GRAPHIFY query "tenant isolation" --budget 1500 --min-confidence INFERRED --json --graph $GLOBAL_GRAPH
+
+# Tier 3 (via navigator): shortest path between two symbols (v0.5.6+)
+$GRAPHIFY path "createInvoice" "stripe.charges.create" --json --graph $GLOBAL_GRAPH
 ```
 
-**Fallback rule**: if `callees`/`callers` returns 0 on a Hono route (v0.5.2 §12.3c: anonymous inline handlers not traced), fall back to `Grep` on the namespace.function pattern.
+**Fallback rule**: if `callees`/`callers` returns 0 on a Hono route (v0.5.2 §12.3c: anonymous inline handlers not traced), fall back to `Grep` on the namespace.function pattern, or escalate to Tier 2 (`query`) for concept-level hits.
 
-**Precondition**: `test -f $CLAUDE_PROJECT_DIR/.claude/architecture/graph/build-summary.json` — if missing, run `/wm-setup` to install graphify + build graphs (or use `Explore` only as fallback).
+**Precondition**: `test -f $CLAUDE_PROJECT_DIR/.claude/architecture/graph/build-summary.json` — if missing, run `/wm-setup` to install graphify + build graphs. Navigator will emit `warnings: ["graph older than 7d; ..."]` in its JSON response when the `_global` graph mtime exceeds 7 days (`schema_version: "2"`).
 
 ---
 

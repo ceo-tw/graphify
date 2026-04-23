@@ -14,6 +14,8 @@
 > ```
 > The PyPI `graphifyy` package is the upstream release and does not include the fork features. See [CHANGELOG](CHANGELOG.md) for v0.5.x fork additions.
 
+> **v0.5.6 note**: The /graphify Pass 3 semantic extraction prompt was enriched (cross-document edges, relaxed hyperedge cap, AMBIGUOUS emit guidance). Existing graphs remain valid; to regenerate with richer semantics, delete `graphify-out/cache/` and re-run. See CHANGELOG v0.5.6 for details.
+
 **An AI coding assistant skill.** Type `/graphify` in Claude Code, Codex, OpenCode, Cursor, Gemini CLI, GitHub Copilot CLI, VS Code Copilot Chat, Aider, OpenClaw, Factory Droid, Trae, Hermes, Kiro, or Google Antigravity - it reads your files, builds a knowledge graph, and gives you back structure you didn't know was there. Understand a codebase faster. Find the "why" behind architectural decisions.
 
 Fully multimodal. Drop in code, PDFs, markdown, screenshots, diagrams, whiteboard photos, images in other languages, or video and audio files - graphify extracts concepts and relationships from all of it and connects them into one graph. Videos are transcribed with Whisper using a domain-aware prompt derived from your corpus. 25 languages supported via tree-sitter AST (Python, JS, TS, Go, Rust, Java, C, C++, Ruby, C#, Kotlin, Scala, PHP, Swift, Lua, Zig, PowerShell, Elixir, Objective-C, Julia, Verilog, SystemVerilog, Vue, Svelte, Dart).

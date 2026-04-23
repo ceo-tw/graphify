@@ -1,0 +1,22 @@
+{
+  "built_at": "2026-04-23T16:16:00+09:00",
+  "graphify_version": "0.5.5",
+  "graphify_commit": "c07b3fb",
+  "source_project": "graphify (self, v4 branch)",
+  "source_root": "/Users/tw.kim/Documents/AGA/test/graphify",
+  "language_scope": ["python"],
+  "domains": {
+    "_global": {
+      "status": "built",
+      "graph_path": ".claude/architecture/graph/_global/graphify-out/graph.json",
+      "nodes": 1871,
+      "edges": 4114,
+      "communities": 33
+    }
+  },
+  "notes": [
+    "Self-analysis: pure Python CLI + library — no FE/BE URL surface.",
+    "Most nodes have kind=null (AST function/class/import nodes). URL/API/SERVICE kinds apply only when target has web routes.",
+    "For full manifest/domain decomposition, run /wm-setup UPDATE to regenerate."
+  ]
+}

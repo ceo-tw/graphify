@@ -112,3 +112,147 @@ def test_explain_no_match_prints_message(tiny_graph: Path) -> None:
     r = _run(["explain", "nonexistent-symbol-xyz"], tiny_graph)
     assert r.returncode == 0
     assert "No node" in r.stdout
+
+
+# ---------------------------------------------------------------------------
+# PHASE 2 tests — R2.1 fuzzy fallback, R2.2 --min-confidence flag
+# ---------------------------------------------------------------------------
+
+def _seed_query_graph(tmp_path: Path) -> Path:
+    """Graph for PHASE 2 tests.
+
+    Nodes:
+      - session_validate   (label: "sessionValidate",  source_file: "auth/session.py")
+      - audit_log          (label: "auditLog",          source_file: "audit/log.py")
+      - build_graph_fn     (label: "buildGraph",        source_file: "graphify/build.py")
+    Edges:
+      - session_validate → audit_log    confidence=AMBIGUOUS  relation=triggers
+      - session_validate → build_graph  confidence=INFERRED   relation=calls
+    """
+    g = {
+        "directed": False,
+        "multigraph": False,
+        "graph": {},
+        "nodes": [
+            {"id": "session_validate", "label": "sessionValidate",
+             "source_file": "auth/session.py", "source_location": "L12", "community": 0},
+            {"id": "audit_log", "label": "auditLog",
+             "source_file": "audit/log.py", "source_location": "L5", "community": 0},
+            {"id": "build_graph_fn", "label": "buildGraph",
+             "source_file": "graphify/build.py", "source_location": "L40", "community": 1},
+        ],
+        "links": [
+            {"source": "session_validate", "target": "audit_log",
+             "relation": "triggers", "confidence": "AMBIGUOUS"},
+            {"source": "session_validate", "target": "build_graph_fn",
+             "relation": "calls", "confidence": "INFERRED"},
+        ],
+    }
+    p = tmp_path / "phase2_graph.json"
+    p.write_text(json.dumps(g))
+    return p
+
+
+def test_query_fuzzy_fallback(tmp_path: Path) -> None:
+    """R2.1 — a typo/truncated query "sesion validate" must still surface sessionValidate
+    via fuzzy matching when exact substring scoring returns < 3 results."""
+    graph = _seed_query_graph(tmp_path)
+    r = _run(["query", "sesion validate"], graph)
+    assert r.returncode == 0, r.stderr
+    # Fuzzy match should find sessionValidate despite the typo
+    assert "sessionvalidate" in r.stdout.lower() or "session_validate" in r.stdout.lower(), (
+        f"Expected fuzzy match for 'sesion validate' to surface sessionValidate.\n"
+        f"stdout: {r.stdout!r}\nstderr: {r.stderr!r}"
+    )
+
+
+def test_query_min_confidence_excludes_ambiguous(tmp_path: Path) -> None:
+    """R2.2 — --min-confidence INFERRED must omit the AMBIGUOUS edge to auditLog
+    while still including the INFERRED edge to buildGraph."""
+    graph = _seed_query_graph(tmp_path)
+    # Without filter: auditLog should appear (reachable via AMBIGUOUS edge)
+    r_all = _run(["query", "sessionValidate"], graph)
+    assert r_all.returncode == 0, r_all.stderr
+    assert "auditlog" in r_all.stdout.lower() or "audit_log" in r_all.stdout.lower(), (
+        f"Baseline: expected auditLog in unrestricted output.\nstdout: {r_all.stdout!r}"
+    )
+
+    # With --min-confidence INFERRED: auditLog must NOT appear
+    r_filtered = _run(["query", "sessionValidate", "--min-confidence", "INFERRED"], graph)
+    assert r_filtered.returncode == 0, r_filtered.stderr
+    assert "auditlog" not in r_filtered.stdout.lower() and "audit_log" not in r_filtered.stdout.lower(), (
+        f"Filtered: auditLog should be excluded by --min-confidence INFERRED.\n"
+        f"stdout: {r_filtered.stdout!r}\nstderr: {r_filtered.stderr!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# PHASE 3 tests — R2.1.5: --json output for query / path
+# ---------------------------------------------------------------------------
+
+def test_query_json_output_structure(tiny_graph: Path) -> None:
+    """R2.1.5 — graphify query --json must emit valid JSON with required keys."""
+    r = _run(["query", "detect", "--json"], tiny_graph)
+    assert r.returncode == 0, r.stderr
+    try:
+        data = json.loads(r.stdout)
+    except json.JSONDecodeError as exc:
+        pytest.fail(f"--json output is not valid JSON: {exc}\nstdout: {r.stdout!r}")
+    # Required top-level keys
+    assert "nodes" in data, f"Missing 'nodes' key in JSON output: {data.keys()}"
+    assert "edges" in data, f"Missing 'edges' key in JSON output: {data.keys()}"
+    assert "subgraph_node_count" in data, f"Missing 'subgraph_node_count' key: {data.keys()}"
+    assert "subgraph_edge_count" in data, f"Missing 'subgraph_edge_count' key: {data.keys()}"
+    # At least one node returned (query matched 'detect')
+    assert data["subgraph_node_count"] >= 1, "Expected at least one node in subgraph"
+
+
+def test_query_json_text_output_unchanged(tiny_graph: Path) -> None:
+    """R2.1.5 — text output (no --json) must still work exactly as before."""
+    r = _run(["query", "detect"], tiny_graph)
+    assert r.returncode == 0, r.stderr
+    assert "detect" in r.stdout.lower()
+    # Must NOT be JSON (text mode)
+    try:
+        json.loads(r.stdout)
+        pytest.fail("Without --json, output should be plain text, not JSON")
+    except json.JSONDecodeError:
+        pass  # expected
+
+
+def test_path_json_output_structure(tiny_graph: Path) -> None:
+    """R2.1.5 — graphify path --json must emit valid JSON with 'found', 'hops', 'path'."""
+    r = _run(["path", "detect", "build", "--json"], tiny_graph)
+    assert r.returncode == 0, r.stderr
+    try:
+        data = json.loads(r.stdout)
+    except json.JSONDecodeError as exc:
+        pytest.fail(f"--json output is not valid JSON: {exc}\nstdout: {r.stdout!r}")
+    assert "found" in data, f"Missing 'found' key: {data.keys()}"
+    assert data["found"] is True, f"Expected found=True for connected nodes, got: {data}"
+    assert "hops" in data, f"Missing 'hops' key: {data.keys()}"
+    assert "path" in data, f"Missing 'path' key: {data.keys()}"
+    assert isinstance(data["path"], list), f"'path' must be a list, got: {type(data['path'])}"
+    assert data["hops"] == 2, f"Expected 2 hops (a→b→c), got: {data['hops']}"
+
+
+def test_path_json_no_path_found(tmp_path: Path) -> None:
+    """R2.1.5 — graphify path --json on disconnected graph must emit found=False."""
+    g = {
+        "directed": False, "multigraph": False, "graph": {},
+        "nodes": [
+            {"id": "x", "label": "alpha", "file_type": "code", "source_file": "a.py"},
+            {"id": "y", "label": "omega", "file_type": "code", "source_file": "b.py"},
+        ],
+        "links": [],
+    }
+    p = tmp_path / "graph.json"
+    p.write_text(json.dumps(g))
+    r = _run(["path", "alpha", "omega", "--json"], p)
+    assert r.returncode == 0, r.stderr
+    try:
+        data = json.loads(r.stdout)
+    except json.JSONDecodeError as exc:
+        pytest.fail(f"--json output is not valid JSON: {exc}\nstdout: {r.stdout!r}")
+    assert "found" in data, f"Missing 'found' key: {data.keys()}"
+    assert data["found"] is False, f"Expected found=False for disconnected graph, got: {data}"

@@ -1,0 +1,44 @@
+# graphify self-analysis ignore patterns (gitignore syntax)
+
+# graphify runtime artifacts / caches
+graphify-out/
+**/graphify-out/
+cache/
+
+# Claude Code tooling (skills, plans, agents — not project content)
+.claude/
+
+# Sample / worked-example corpora (not project source)
+worked/
+
+# NOTE: tests/fixtures/ is intentionally NOT excluded here.
+# Adding it would break test_pipeline.py (8 tests) because graphify.detect()
+# honors .graphifyignore when invoked on any path under repo root — including
+# from pytest. If you want to exclude fixtures from a specific self-analysis
+# run, pass --ignore inline or use a separate config scoped to that run.
+
+# Python runtime
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+*.egg-info/
+**/*.egg-info/
+
+# VCS / IDE
+.git/
+.vscode/
+.idea/
+
+# Plan archives / completed docs (not source)
+complete/
+
+# OS / editor scratch
+.DS_Store
+*.swp

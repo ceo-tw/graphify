@@ -2,6 +2,117 @@
 
 Full release notes with details on each version: [GitHub Releases](https://github.com/safishamsi/graphify/releases)
 
+## 0.5.6 (fork: ceo-tw, 2026-04-23) — Query engine: fuzzy fallback + confidence filtering
+
+### Summary
+Adds two query-engine improvements to `graphify query` and the underlying `serve.py` helpers:
+(1) fuzzy-matched node scoring when exact substring scoring returns fewer than 3 results,
+and (2) a `--min-confidence` flag that filters traversal edges by confidence tier
+(`EXTRACTED` > `INFERRED` > `AMBIGUOUS`).
+Also enriches the `/graphify` Pass 3 semantic-extraction prompt with cross-document edge
+guidance, relaxed hyperedge cap, and AMBIGUOUS emit hints. Existing graphs are fully
+forwards-compatible — no cache invalidation is required unless you want richer semantics.
+
+### Query engine — R2.1: fuzzy fallback (`graphify/serve.py`)
+
+- `_score_nodes(G, terms, fuzzy=True)`: new `fuzzy` kwarg (default `True`; backwards-compatible —
+  callers passing only `(G, terms)` are unaffected).
+- When exact substring scoring returns `< 3` results and `norm_terms` is non-empty, the new
+  `_fuzzy_score_nodes(G, norm_terms, exclude)` stage runs:
+  - Uses `rapidfuzz.fuzz.token_set_ratio` if the optional `query-fuzzy` extra is installed;
+    falls back to `difflib.SequenceMatcher` otherwise (no hard dependency, graceful degradation).
+  - Threshold: 0.6. Score mapped to `[0.0, 0.4]` via `round((best - 0.6) * 1.0, 3)`.
+  - Stage-1 exact hits excluded from fuzzy candidates via the `exclude` set.
+- Example: query `"sesion validate"` (typo) surfaces `sessionValidate` via fuzzy stage.
+- **Scope note**: because `cmd_path`, `cmd_explain`, and MCP tools (`_tool_shortest_path`, `_tool_query_graph`) all share `_score_nodes`, fuzzy fallback applies to them too. The score-band invariant (fuzzy hits capped at 0.4 vs any exact hit ≥ 0.5) guarantees exact matches still rank first; fuzzy only activates when exact scoring is sparse. Pass `fuzzy=False` explicitly if you need strict-exact matching in a new caller.
+- **Upgrade note**: after `pip install -e .` or `pip install --upgrade ...`, run `graphify install` once to refresh the Claude Code skill to v0.5.6 (otherwise the CLI emits a skill/package version-mismatch warning).
+
+### Query engine — R2.2: `--min-confidence` flag (`graphify/serve.py`, `graphify/cli_graph_query.py`)
+
+- New `_CONF_RANK = {"EXTRACTED": 3, "INFERRED": 2, "AMBIGUOUS": 1}` constant in `serve.py`.
+- New `_edge_passes(G, u, v, min_confidence)` helper: union semantics for MultiGraph
+  (edge passes if any parallel edge meets the threshold); `min_confidence=None` always passes.
+- `_bfs` and `_dfs` gain keyword-only `min_confidence: str | None = None` parameter.
+  All existing call sites (no keyword arg) continue to work unchanged.
+- `cmd_query` in `cli_graph_query.py` parses `--min-confidence TIER` and
+  `--min-confidence=TIER` (both forms); validates against `{"EXTRACTED","INFERRED","AMBIGUOUS"}`
+  and prints a clear error + returns exit-code 1 on bad values.
+- Usage line updated to include `[--min-confidence {EXTRACTED|INFERRED|AMBIGUOUS}]`.
+- Default: `None` — **not** `EXTRACTED`. v0.5.5 graphs contain AMBIGUOUS edges that are now
+  reachable by default; filtering is opt-in.
+
+### Pass 3 semantic extraction prompt
+
+The `/graphify` skill's Pass 3 prompt was enriched with:
+- Cross-document edge guidance (link concepts across files, not just within a single file).
+- Relaxed hyperedge cap (allows more relationships per concept when evidence is strong).
+- AMBIGUOUS emit hints (guidance to emit AMBIGUOUS-confidence edges for partial or inferred
+  cross-document links rather than dropping them).
+Existing graphs remain valid. To regenerate with richer semantics, delete
+`graphify-out/cache/` and re-run `/graphify`.
+
+### Cache discoverability
+No cache schema change. Cache version remains v3. Graphs produced by v0.5.5 are fully
+readable by v0.5.6 — no migration required.
+
+### Dependencies
+- `rapidfuzz` added as optional extra `query-fuzzy = ["rapidfuzz"]`.
+- Added to `all = [...]` extras list.
+- `difflib` fallback ensures the fuzzy feature is available without installing the extra.
+
+### Backwards compatibility
+- `_score_nodes(G, terms)` callers: unaffected (new `fuzzy=True` default).
+- `_bfs(G, start, depth)` / `_dfs(G, start, depth)` callers: unaffected (`min_confidence=None` default).
+- `_tool_query_graph` MCP surface: unchanged (PHASE 3 will wire `min_confidence`).
+- EXTRACTED/INFERRED edges: traversal behavior unchanged when `--min-confidence` is absent.
+- AMBIGUOUS edges: now traversable by default in `graphify query` (consistent with v0.5.5 emit).
+
+### Tests
+- `tests/test_cli_query.py`: two new tests added.
+  - `test_query_fuzzy_fallback` — verifies typo query `"sesion validate"` surfaces `sessionValidate`.
+  - `test_query_min_confidence_excludes_ambiguous` — verifies `--min-confidence INFERRED` omits
+    the AMBIGUOUS edge to `auditLog` while keeping the INFERRED edge to `buildGraph`.
+
+### Known limitations
+- `_tool_query_graph` MCP surface does not yet accept `min_confidence`; reserved for PHASE 3.
+- Fuzzy scores are in `[0.0, 0.4]` range and will always rank below exact substring hits.
+  Very short queries (< 3-char tokens filtered by CLI) may produce no fuzzy candidates.
+
+### Query engine — R2.1.5: JSON output for query/path (`graphify/serve.py`, `graphify/cli_graph_query.py`)
+
+- New `_subgraph_to_json(G, nodes, edges) -> dict` helper in `serve.py`:
+  renders a BFS/DFS subgraph as a JSON-serialisable dict instead of the human-readable
+  text produced by `_subgraph_to_text`. Output schema:
+  ```json
+  {
+    "nodes": [{"id", "label", "source_file", "source_location", "community", "file_type"}, ...],
+    "edges": [{"source", "target", "relation", "confidence", "confidence_score"}, ...],
+    "subgraph_node_count": <int>,
+    "subgraph_edge_count": <int>
+  }
+  ```
+  Nodes sorted by degree descending then by id (deterministic). Duplicate edges removed.
+- `cmd_query` accepts `--json`: when present, emits `_subgraph_to_json(...)` as a single
+  JSON line on stdout instead of the text rendering. Text output path is unchanged.
+  "No matching nodes" with `--json` returns `{"nodes":[],"edges":[],"subgraph_node_count":0,"subgraph_edge_count":0}`.
+- `cmd_path` accepts `--json`: emits `{"found": true/false, "hops": <int|null>, "path": [...]}`.
+  Each path item is `{"id", "label"}` plus `{"relation", "confidence"}` for non-terminal nodes.
+  "No path" returns `{"found": false, "hops": null, "path": []}` (exit 0).
+  "Node not found" returns `{"found": false, "error": "..."}` (exit 0, not 1).
+- Text output paths for both commands are **unchanged** (backwards compatible).
+- Determinism: no `random`, `time`, or `uuid` calls; output is deterministic for a fixed graph.
+
+### Tests — R2.1.5
+- `tests/test_cli_query.py`: four new tests added (total 13 in module).
+  - `test_query_json_output_structure` — verifies `--json` emits valid JSON with required keys
+    and `subgraph_node_count >= 1` for a matched query.
+  - `test_query_json_text_output_unchanged` — verifies text mode (no `--json`) still returns
+    plain text and NOT a JSON string (backwards-compat guard).
+  - `test_path_json_output_structure` — verifies `--json` on a connected graph emits
+    `found=true`, correct `hops`, and a `path` list.
+  - `test_path_json_no_path_found` — verifies `--json` on a disconnected graph emits `found=false`
+    with exit 0 (no crash, no stderr noise).
+
 ## 0.5.5 (fork: ceo-tw, 2026-04-23) — AMBIGUOUS edge-tag emission
 
 ### Summary

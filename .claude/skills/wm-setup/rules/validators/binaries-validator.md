@@ -120,7 +120,10 @@ def validate(registry_path: str, context: ValidationContext) -> ValidationResult
                 continue
 
         # Step 3: required_features check (graphify --help)
-        if "required_features" in item:
+        # HARD tier (required_features): missing → FAIL
+        # SOFT tier (required_features_soft, R4.2 v0.5.6+): missing → WARN (1-release compat window)
+        # See "Special Cases: graphify query / path / explain feature check (R4.2, soft-warn)" below.
+        if "required_features" in item or "required_features_soft" in item:
             if has_path:
                 bin_exec = str(project_root / item["path"])
             else:
@@ -130,8 +133,9 @@ def validate(registry_path: str, context: ValidationContext) -> ValidationResult
                 capture_output=True, text=True
             )
             help_output = help_result.stdout + help_result.stderr
+
             missing_features = [
-                f for f in item["required_features"]
+                f for f in item.get("required_features", [])
                 if f not in help_output
             ]
             if missing_features:
@@ -140,6 +144,22 @@ def validate(registry_path: str, context: ValidationContext) -> ValidationResult
                 install_hint = _get_install_hint(item)
                 results.append(_make_item(item, status, detail, install_hint))
                 continue
+
+            # Soft tier (R4.2, 1-release compatibility window): WARN instead of FAIL.
+            # Does not `continue` — rest of validation still runs for this item.
+            missing_soft = [
+                f for f in item.get("required_features_soft", [])
+                if f not in help_output
+            ]
+            if missing_soft:
+                soft_status = "WARN"
+                soft_detail = (
+                    f"{bin_name} missing soft features: {missing_soft} — "
+                    f"wm A-1 Tier 2/3 (NL query / two-node path) unavailable; "
+                    f"falls back to Explore. Upgrade ceo-tw/graphify to ≥ v0.5.6."
+                )
+                results.append(_make_item(item, soft_status, soft_detail, _get_install_hint(item)))
+                # NOTE: do NOT `continue` — pypi_forbidden and other checks should still run.
 
         # Step 4: pypi_forbidden check
         if item.get("pypi_forbidden"):
@@ -321,6 +341,44 @@ provide accurate install hints per platform. Detection uses `$OSTYPE` environmen
 - `darwin*` → macOS (brew)
 - `linux*` → Linux (apt-get)
 - Other → generic `install_command` fallback
+
+### graphify query / path / explain feature check (R4.2, soft-warn)
+
+Introduced in v0.5.5/v0.5.6. These three subcommands back the `knowledge-graph-navigator`
+Tier 2 and Tier 3 paths of the wm A-1 fallback (wm/SKILL.md §1).
+
+Detection is the existing `required_features` substring match on `graphify --help` output,
+but gated under a new **`required_features_soft`** field in the registry:
+
+```bash
+# Contract (existing logic, extended to soft tier):
+.claude/graphify/.venv/bin/graphify --help | grep -qE '^\s*(query|path|explain)\s'
+```
+
+If any of `{query, path, explain}` is missing:
+
+- Status: **WARN** (not FAIL) — wm navigator Tier 2/3 degrades to Tier 4 (Explore agent)
+  for NL/concept questions, but core structural lookups (`resolve`/`callers`/`callees`/
+  `blast`) continue working via Tier 1.
+- Log: `"graphify <name> subcommand missing — A-1 Tier 2/3 unavailable; wm falls
+  back to Explore for NL/concept questions. Upgrade ceo-tw/graphify to ≥ v0.5.6."`
+- install_hint: same as BIN-001 (reinstall from ceo-tw fork v4 branch).
+
+**Rollout window**: 1-release compatibility period. In a follow-up release, promote
+these three from `required_features_soft` → `required_features` (WARN → HARD FAIL).
+This prevents `/wm-setup VERIFY` from tripping HARD FAIL on every v0.5.4/v0.5.5
+install on the day v0.5.6 ships.
+
+Validator pseudocode addition:
+
+```python
+for feature in item.get("required_features", []):
+    if feature not in help_output:
+        emit_fail(item.id, f"missing required feature: {feature}")
+for feature in item.get("required_features_soft", []):
+    if feature not in help_output:
+        emit_warn(item.id, f"missing soft feature: {feature} — Tier 2/3 unavailable")
+```
 
 ## References
 

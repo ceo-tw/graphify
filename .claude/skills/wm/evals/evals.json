@@ -301,6 +301,48 @@
           "values": ["EnterPlanMode"]
         }
       ]
+    },
+    {
+      "id": 10,
+      "name": "wm-nl-query-routes-to-graphify-query",
+      "prompt": "/wm 현재 graphify 에서 tenant isolation 을 구현하는 함수들은?",
+      "expected_output": "INQUIRY 분류. A-1 규칙 Tier 2 적용: NL question → knowledge-graph-navigator → graphify query 라우팅. Explore agent 호출 0건. navigator 결과에 query_result 필드 포함.",
+      "expected_type": "INQUIRY",
+      "expected_complexity": "Simple",
+      "expected_process_file": "rules/processes/inquiry.md",
+      "files": [],
+      "assertions": [
+        {
+          "id": "inquiry-type-nl",
+          "text": "NL question classified as INQUIRY",
+          "type": "contains_any",
+          "values": ["INQUIRY", "inquiry", "분석"]
+        },
+        {
+          "id": "a1-tier2-nl-routing",
+          "text": "Plan references A-1 Tier 2 routing (NL → graphify query via navigator)",
+          "type": "contains_any",
+          "values": ["graphify query", "knowledge-graph-navigator", "navigator", "Tier 2", "A-1", "NL question"]
+        },
+        {
+          "id": "graphify-query-cli-invoked",
+          "text": "Transcript or plan contains a graphify query CLI invocation",
+          "type": "contains_all",
+          "values": ["graphify query"]
+        },
+        {
+          "id": "no-explore-agent-for-nl",
+          "text": "Explore agent is NOT invoked for this NL question (Tier 2 owns this route)",
+          "type": "not_contains",
+          "values": ["subagent_type=\"Explore\"", "Agent(subagent_type='Explore'", "subagent_type: Explore"]
+        },
+        {
+          "id": "plan-mode-entry",
+          "text": "Skill enters Plan Mode",
+          "type": "tool_used",
+          "values": ["EnterPlanMode"]
+        }
+      ]
     }
   ]
 }

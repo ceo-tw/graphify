@@ -36,6 +36,13 @@ items:
       - blast
       - init-ignore
       - "--directed"
+    # R4.2 — v0.5.6+ subcommands backing knowledge-graph-navigator Tier 2/3 (wm/SKILL.md §1 A-1).
+    # Soft-warn for 1-release compatibility window: existing v0.5.4/v0.5.5 installs will WARN
+    # (not FAIL) when these are missing. Promote to required_features in a follow-up release.
+    required_features_soft:
+      - query          # Tier 2: NL concept question wrapper
+      - path           # Tier 3: two-node shortest-path delegation
+      - explain        # Diagnostic: node-centric explanation, aids Tier 1 refinement
     validation:
       type: version_check
 
