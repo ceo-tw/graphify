@@ -282,7 +282,7 @@ def verify_domain_rules(domain: str, worktree_path: str) -> dict:
 
     graphify is a pure-Python CLI + library. Domains map to the internal module
     taxonomy (pipeline, ingest, cli, mcp, packaging), NOT to frontend/backend/
-    database/client. Legacy openclaw-style domain verifiers have been removed.
+    database/client. Web-stack-specific domain verifiers are not used here.
     """
     if domain in ("pipeline", "graphify-core", "extract", "build", "analyze"):
         return verify_determinism_rules(worktree_path)

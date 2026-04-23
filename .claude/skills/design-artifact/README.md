@@ -35,11 +35,11 @@ HTML 기반 디자인 산출물 생성 스킬. 슬라이드 덱, 인터랙티브
 
 | 유형 | 브리프 예시 |
 |------|-------------|
-| 슬라이드 덱 | `/design-artifact admin-portal 스타일로 Q2 로드맵 발표 덱 8장` |
+| 슬라이드 덱 | `/design-artifact 프로젝트 스타일로 분기 로드맵 발표 덱 8장` |
 | 프로토타입 | `/design-artifact 에이전트 생성 마법사 3단계 인터랙티브 프로토타입, 변형 3개` |
 | 애니메이션 | `/design-artifact 온보딩 인트로 5초 애니메이션 비디오` |
-| 랜딩 페이지 | `/design-artifact openclaw 마케팅 랜딩페이지 목업, 히어로+피처+CTA` |
-| 와이어프레임 | `/design-artifact 결제 플로우 4화면 와이어프레임 스토리보드` |
+| 랜딩 페이지 | `/design-artifact 제품 소개 랜딩페이지 목업, 히어로+피처+CTA` |
+| 와이어프레임 | `/design-artifact 주문 플로우 4화면 와이어프레임 스토리보드` |
 
 ---
 
@@ -52,7 +52,7 @@ design-artifact는 프로젝트의 디자인 시스템을 컨텍스트로 사용
 처음 design-artifact를 사용하거나 디자인 시스템이 변경된 경우 반드시 먼저 호출합니다.
 
 ```bash
-/ui-snapshot src/admin-portal
+/ui-snapshot <frontend-source-dir>   # 예: src/web, apps/admin, packages/ui 등
 ```
 
 자동 추출 항목:
@@ -62,7 +62,7 @@ design-artifact는 프로젝트의 디자인 시스템을 컨텍스트로 사용
 - 폰트 시스템, 컬러 팔레트, 스페이싱 스케일
 - 아이콘 라이브러리
 
-결과물 `.ui-snapshot.md`는 design-artifact의 Context 단계에서 자동으로 읽혀 `admin-portal 스타일` 같은 브리프 키워드에 매핑됩니다.
+결과물 `.ui-snapshot.md`는 design-artifact의 Context 단계에서 자동으로 읽혀 `프로젝트 스타일` 같은 브리프 키워드에 매핑됩니다.
 
 | 상황 | 실행 여부 |
 |------|-----------|
@@ -131,7 +131,7 @@ Chrome/Safari 에서 로컬 HTML 로 렌더링. 검증 실패 시 스크린샷�
 ## 8. 팁
 
 - **컨텍스트 없이 시작하면 결과 품질이 낮음** — UI 스냅샷 먼저: `/ui-snapshot` 호출
-- **코드베이스 특정 컴포넌트 스타일 재현 시** — 파일 경로를 브리프에 명시 (예: `src/admin-portal/components/common/empty-state.tsx`)
+- **코드베이스 특정 컴포넌트 스타일 재현 시** — 파일 경로를 브리프에 명시 (예: `src/web/components/common/empty-state.tsx`)
 - **막히면 자동 탐색 활용** — `Agent(subagent_type="Explore")` 서브에이전트가 코드베이스 탐색
 - **덱 작업 시 셸 재사용** — `.claude/skills/design-artifact/templates/default-deck-shell.html` 기반으로 section만 교체 권장
 - **검증 실패 시 `.verify/` 확인** — `designs/{이름}/.verify/` 폴더의 스크린샷·콘솔 로그로 원인 파악
