@@ -117,6 +117,8 @@ Output fields: `current_state`, `data_flow_design` (pattern, rationale, primary_
                                             └────────────┘
 ```
 
+> **Scope note**: This prompt template is targeted at UI-bearing projects (React / Vue / Svelte + server API). It describes frontend state management (React Query, Zustand, etc.), server↔client data flow, and HTTP integration. In a pure-CLI or pure-library project (e.g., graphify — Python CLI with no UI/server) this template does not apply — the architect role should skip frontend state classification and instead evaluate module boundaries, pipeline determinism, and cache invariants.
+
 ## Constraints
 
 <constraints>

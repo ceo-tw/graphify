@@ -34,7 +34,7 @@ user-invocable: true
 ### Step 1: 변경 분석
 
 위 Context의 diff 내용을 분석하여 다음을 파악한다:
-- 어떤 모듈/기능이 변경되었는지 (billing, admin-portal, agent 등)
+- 어떤 모듈/기능이 변경되었는지 (예: graphify core `extract`, `build`, `cli_graph_query`, 또는 대상 저장소의 도메인)
 - 변경의 성격 (새 기능, 버그 수정, 리팩토링 등)
 - 핵심 키워드 추출 (변경과 관련된 도메인 용어)
 
@@ -49,8 +49,8 @@ user-invocable: true
    - 여러 키워드를 조합하여 정밀도를 높인다
 
 2. **모듈 기반 검색**: 변경된 파일 경로에서 모듈명 추출
-   - 예: `src/billing-api/` 변경 → `text ~ "billing"`
-   - 예: `src/admin-portal/components/agents/` 변경 → `text ~ "agent"`
+   - 예: `graphify/build.py` 변경 → `text ~ "graph-build"` 또는 `labels = "graph-build"`
+   - 예: `graphify/ingest.py` 변경 → `text ~ "ingest"` 또는 `labels = "ingest"`
 
 3. **최근 활성 티켓**: 넓은 범위로 최근 생성된 미완료 티켓 조회
    - JQL: `project = PAW AND status != Done ORDER BY created DESC`
